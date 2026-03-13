@@ -18,25 +18,140 @@
     "options": [
       {
         "id": "1",
-        "label": "🐛 Reportar un error",
-        "flowId": "reportError"
+        "label": "🏢 Soy cliente",
+        "conditionalFlowId": "clientFlow",
+        "conditionalFlowStartStep": "askClientName"
       },
       {
         "id": "2",
-        "label": "❓ Consultar sobre como realizar alguna acción o resolver una duda sobre un sistema desarrollado a medida para mi negocio",
-        "flowId": "queryKnowledge"
+        "label": "🤝 No soy cliente — tengo una consulta",
+        "conditionalFlowId": "prospectFlow",
+        "conditionalFlowStartStep": "askProspectQuery"
       },
       {
         "id": "3",
-        "label": "👨‍💻 Hablar con desarrollo.",
+        "label": "📞 Contactar con atención al cliente",
         "action": "ESCALATE"
-      },
-      {
-        "id": "4",
-        "label": "💼 Hablar con ventas.",
-        "flowId": "querySales"
       }
     ]
+  },
+  "conditionalFlows": {
+    "clientFlow": {
+      "startStep": "askClientName",
+      "steps": {
+        "askClientName": {
+          "type": "input",
+          "prompt": "Por favor ingresá tu *nombre* o el nombre de tu *empresa* para verificar tu cuenta:",
+          "saveAs": "clientInput",
+          "nextStep": "validateClient"
+        },
+        "validateClient": {
+          "type": "validate",
+          "dataSource": "clients",
+          "inputVar": "clientInput",
+          "onMatch": {
+            "saveAs": "matchedClient",
+            "nextStep": "clientMenu"
+          },
+          "onNoMatch": {
+            "message": "No encontré tu empresa en nuestra base de clientes. Voy a notificar a *{developerName}* para que te contacte a la brevedad. 🙏",
+            "action": "ESCALATE",
+            "notification": "⚠️ *Cliente no encontrado*\n\n📱 *Teléfono:* {senderPhone}\n💬 *Ingresó:* \"{clientInput}\"\n🕐 *Hora:* {timestamp}\n📍 *Ruta:* {flowPath}"
+          }
+        },
+        "clientMenu": {
+          "type": "menu",
+          "message": "¡Bienvenido/a, *{matchedClient.name}*! 👋\n🏢 Empresa: *{matchedClient.company}*\n\n¿En qué te puedo ayudar hoy?",
+          "options": [
+            {
+              "id": "1",
+              "label": "🐛 Reportar un error",
+              "nextStep": "errorDescription"
+            },
+            {
+              "id": "2",
+              "label": "❓ Consultar sobre funcionalidades del sistema",
+              "nextStep": "queryFunctionality"
+            },
+            {
+              "id": "3",
+              "label": "📋 Errores o problemas comunes",
+              "nextStep": "queryCommonIssues"
+            },
+            {
+              "id": "4",
+              "label": "👨‍💻 Hablar con desarrollo",
+              "action": "ESCALATE",
+              "notification": "👨‍💻 *Solicitud de contacto con desarrollo*\n\n👤 *Cliente:* {matchedClient.name}\n🏢 *Empresa:* {matchedClient.company}\n📱 *Teléfono:* {senderPhone}\n🕐 *Hora:* {timestamp}\n📍 *Ruta:* {flowPath}"
+            }
+          ],
+          "invalidMessage": "Por favor elegí una opción del 1 al 4."
+        },
+        "errorDescription": {
+          "type": "input",
+          "prompt": "Contame qué está pasando. Describí el error con el mayor detalle posible:\n\n• ¿Qué estabas haciendo cuando ocurrió?\n• ¿Aparece algún mensaje de error?\n• ¿Desde cuándo sucede?",
+          "saveAs": "errorDescription",
+          "nextStep": "errorScreenshot"
+        },
+        "errorScreenshot": {
+          "type": "input",
+          "prompt": "¿Podés enviarme una captura de pantalla del error? Si no tenés, escribí *no tengo*.",
+          "saveAs": "errorScreenshot",
+          "acceptMedia": true,
+          "mediaFallback": "[imagen adjunta]",
+          "nextStep": "errorConfirmation"
+        },
+        "errorConfirmation": {
+          "type": "message",
+          "text": "✅ Perfecto, registré el reporte. Voy a notificar a *{developerName}* para que lo revise a la brevedad. ¡Gracias por avisarnos! 🙏",
+          "action": "NOTIFY_DEVELOPER",
+          "notification": "🐛 *Nuevo reporte de error*\n\n👤 *Cliente:* {matchedClient.name}\n🏢 *Empresa:* {matchedClient.company}\n📱 *Teléfono:* {senderPhone}\n📝 *Descripción:* {errorDescription}\n📎 *Captura:* {errorScreenshot}\n🕐 *Hora:* {timestamp}\n📍 *Ruta:* {flowPath}",
+          "nextStep": "END"
+        },
+        "queryFunctionality": {
+          "type": "ai",
+          "inputPrompt": "Contame tu consulta sobre el sistema y voy a buscar la información para ayudarte:",
+          "textOnlyMessage": "Por favor escribí tu consulta con texto.",
+          "useKnowledge": true,
+          "ragContextInstruction": "Respondé de forma natural y conversacional. Si la información no es suficiente, decí que podés comunicarte con desarrollo.",
+          "fallbackToEscalation": true,
+          "noResultMessage": "No encontré información específica sobre eso en mi base de conocimiento. Voy a notificar a *{developerName}* para que te ayude directamente.",
+          "noResultNotification": "❓ *Consulta sin respuesta en base de conocimiento*\n\n👤 *Cliente:* {matchedClient.name}\n🏢 *Empresa:* {matchedClient.company}\n📱 *Teléfono:* {senderPhone}\n💬 *Consulta:* \"{userQuery}\"\n🕐 *Hora:* {timestamp}",
+          "continuePrompt": "¿Hay algo más en lo que pueda ayudarte? Escribí tu consulta o *menú* para volver al inicio.",
+          "saveQueryAs": "userQuery",
+          "nextStep": "END"
+        },
+        "queryCommonIssues": {
+          "type": "ai",
+          "inputPrompt": "Describí el problema o error que estás teniendo y voy a buscar si es un problema conocido con solución:",
+          "textOnlyMessage": "Por favor describí el problema con texto.",
+          "useKnowledge": true,
+          "ragContextInstruction": "Buscá si el problema tiene una solución conocida. Si la encontrás, explicá los pasos claramente. Si no, sugerí contactar con desarrollo.",
+          "fallbackToEscalation": false,
+          "continuePrompt": "¿Te ayudó la respuesta? Si necesitás más ayuda escribí tu consulta o *menú* para volver al inicio.",
+          "saveQueryAs": "commonIssueQuery",
+          "nextStep": "END"
+        }
+      }
+    },
+    "prospectFlow": {
+      "startStep": "askProspectQuery",
+      "steps": {
+        "askProspectQuery": {
+          "type": "input",
+          "prompt": "Entendido. ¿Cuál es tu consulta? Podés escribirla y un miembro de nuestro equipo se va a comunicar con vos a la brevedad:",
+          "saveAs": "prospectQuery",
+          "nextStep": "prospectConfirmation"
+        },
+        "prospectConfirmation": {
+          "type": "message",
+          "text": "¡Gracias por tu mensaje! 🙏 Voy a notificar a *{developerName}* para que se comunique con vos a la brevedad.\n\nTe contactamos pronto. ¡Hasta luego! 👋",
+          "action": "NOTIFY_DEVELOPER",
+          "notification": "📩 *Consulta de prospecto / no-cliente*\n\n📱 *Teléfono:* {senderPhone}\n💬 *Consulta:* \"{prospectQuery}\"\n🕐 *Hora:* {timestamp}\n📍 *Ruta:* {flowPath}\n\n_Este usuario NO está en la base de clientes._",
+          "nextStep": "END"
+        }
+      }
+    }
   },
   "flows": {
     "reportError": {
@@ -78,9 +193,6 @@
   "ai": {
     "model": "qwen3:8b",
     "embeddingModel": "nomic-embed-text",
-    "_comment_ollama": "To use Ollama, set AI_PROVIDER=ollama in .env and change model/embeddingModel below. Pull models first: ollama pull qwen3:8b && ollama pull nomic-embed-text",
-    "_ollama_model_example": "qwen3:8b",
-    "_ollama_embeddingModel_example": "nomic-embed-text",
     "systemPrompt": "Sos BugMate, el asistente de soporte técnico de {company}. Tu objetivo es ayudar a los clientes con dudas y problemas sobre el sistema. Respondé de forma natural y humana, como lo haría una persona real de soporte. Sé empático, claro y conciso. Si no sabés algo con certeza, no inventes — decí que vas a consultarlo. Usá español rioplatense.",
     "ragMinScore": 0.72,
     "ragTopK": 3,

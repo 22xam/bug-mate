@@ -164,17 +164,22 @@ export class KnowledgeService implements OnModuleInit {
   }
 
   private chunkText(text: string, maxWords: number): string[] {
-    const paragraphs = text.split(/\n{2,}/);
+    const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    // Split by double newlines first, fall back to single newlines
+    const rawParagraphs = normalized.split(/\n+/);
     const chunks: string[] = [];
     let current = '';
 
-    for (const para of paragraphs) {
-      const words = para.trim().split(/\s+/);
-      if (current.split(/\s+/).length + words.length > maxWords) {
-        if (current.trim()) chunks.push(current.trim());
-        current = para;
+    for (const para of rawParagraphs) {
+      const trimmed = para.trim();
+      if (!trimmed) continue;
+      const currentWords = current ? current.split(/\s+/).length : 0;
+      const paraWords = trimmed.split(/\s+/).length;
+      if (current && currentWords + paraWords > maxWords) {
+        chunks.push(current.trim());
+        current = trimmed;
       } else {
-        current += (current ? '\n\n' : '') + para;
+        current += (current ? '\n' : '') + trimmed;
       }
     }
     if (current.trim()) chunks.push(current.trim());

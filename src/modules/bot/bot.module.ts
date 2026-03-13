@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BotService } from './bot.service';
+import { ConditionalFlowService } from './conditional-flow.service';
+import { ValidateService } from './validate.service';
 import { AiModule } from '../ai/ai.module';
 import { AppConfigModule } from '../config/config.module';
 import { SessionModule } from '../session/session.module';
@@ -7,7 +9,7 @@ import { KnowledgeModule } from '../knowledge/knowledge.module';
 
 @Module({
   imports: [AiModule, AppConfigModule, SessionModule, KnowledgeModule],
-  providers: [BotService],
+  providers: [BotService, ConditionalFlowService, ValidateService],
   exports: [BotService],
 })
 export class BotModule {}

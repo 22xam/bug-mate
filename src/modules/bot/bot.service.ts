@@ -6,6 +6,7 @@ import { BotConfigService } from '../config/bot-config.service';
 import { ConfigLoaderService } from '../config/config-loader.service';
 import { SessionService } from '../session/session.service';
 import { KnowledgeService } from '../knowledge/knowledge.service';
+import { ConditionalFlowService } from './conditional-flow.service';
 import type { ConversationSession } from '../session/session.types';
 import type { AiFlow, GuidedFlow } from '../config/types/bot-config.types';
 
@@ -19,6 +20,7 @@ export class BotService {
     private readonly configLoader: ConfigLoaderService,
     private readonly sessionService: SessionService,
     private readonly knowledgeService: KnowledgeService,
+    private readonly conditionalFlowService: ConditionalFlowService,
   ) {}
 
   async handleMessage(incoming: IncomingMessage, adapter: MessageAdapter): Promise<void> {
@@ -39,6 +41,11 @@ export class BotService {
 
     if (session.state === 'FLOW_ACTIVE') {
       await this.handleActiveFlow(incoming, session, adapter);
+      return;
+    }
+
+    if (session.state === 'CONDITIONAL_FLOW_ACTIVE') {
+      await this.conditionalFlowService.handleStep(incoming, session, adapter);
       return;
     }
 
@@ -127,7 +134,18 @@ export class BotService {
       return;
     }
 
-    // Flow-based options
+    // Conditional flow-based options
+    if (option.conditionalFlowId) {
+      await this.conditionalFlowService.startFlow(
+        option.conditionalFlowId,
+        option.conditionalFlowStartStep,
+        session,
+        adapter,
+      );
+      return;
+    }
+
+    // Legacy flow-based options
     if (option.flowId) {
       const flow = this.configLoader.botConfig.flows[option.flowId];
       if (!flow) {

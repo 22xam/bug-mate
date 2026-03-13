@@ -2,10 +2,21 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { ConversationSession, ConversationState, FlowData } from './session.types';
 import { ConfigLoaderService } from '../config/config-loader.service';
 
+export interface SessionSummary {
+  senderId: string;
+  clientName: string;
+  state: ConversationState;
+  activeStepId: string | null;
+  activeFlowId: string | null;
+  activeConditionalFlowId: string | null;
+  lastActivityAt: Date;
+}
+
 @Injectable()
 export class SessionService {
   private readonly logger = new Logger(SessionService.name);
   private readonly sessions = new Map<string, ConversationSession>();
+  private readonly startedAt = new Date();
 
   constructor(private readonly configLoader: ConfigLoaderService) {
     // Clean up expired sessions every 5 minutes
@@ -36,6 +47,10 @@ export class SessionService {
       state: 'IDLE',
       activeFlowId: null,
       flowStep: 0,
+      activeConditionalFlowId: null,
+      activeStepId: null,
+      flowPath: [],
+      flowStartedAt: null,
       flowData: {},
       history: [],
       lastActivityAt: new Date(),
@@ -46,6 +61,8 @@ export class SessionService {
     return { session, isNew: true };
   }
 
+  // ─── Legacy flow state ────────────────────────────────────────
+
   setState(senderId: string, state: ConversationState, flowId: string | null = null): void {
     const session = this.sessions.get(senderId);
     if (session) {
@@ -53,6 +70,10 @@ export class SessionService {
       session.activeFlowId = flowId;
       session.flowStep = 0;
       session.flowData = {};
+      session.activeConditionalFlowId = null;
+      session.activeStepId = null;
+      session.flowPath = [];
+      session.flowStartedAt = null;
     }
   }
 
@@ -70,6 +91,50 @@ export class SessionService {
       session.flowData = { ...session.flowData, ...(data as Record<string, string>) };
     }
   }
+
+  // ─── Conditional flow state ───────────────────────────────────
+
+  /** Start a conditional flow — sets state and initializes step tracking */
+  startConditionalFlow(senderId: string, flowId: string, startStepId: string): void {
+    const session = this.sessions.get(senderId);
+    if (session) {
+      session.state = 'CONDITIONAL_FLOW_ACTIVE';
+      session.activeConditionalFlowId = flowId;
+      session.activeStepId = startStepId;
+      session.flowPath = [startStepId];
+      session.flowStartedAt = new Date();
+      session.flowData = {};
+      session.activeFlowId = null;
+      session.flowStep = 0;
+    }
+  }
+
+  /** Advance to a new step within the current conditional flow */
+  advanceConditionalStep(senderId: string, nextStepId: string): void {
+    const session = this.sessions.get(senderId);
+    if (session) {
+      session.activeStepId = nextStepId;
+      session.flowPath.push(nextStepId);
+    }
+  }
+
+  /** Save a string value to flowData (from input steps) */
+  saveFlowVar(senderId: string, key: string, value: string): void {
+    const session = this.sessions.get(senderId);
+    if (session) {
+      session.flowData[key] = value;
+    }
+  }
+
+  /** Save an object value to flowData (from validate steps) */
+  saveFlowObject(senderId: string, key: string, value: Record<string, unknown>): void {
+    const session = this.sessions.get(senderId);
+    if (session) {
+      session.flowData[key] = value;
+    }
+  }
+
+  // ─── Shared ───────────────────────────────────────────────────
 
   addToHistory(senderId: string, role: 'user' | 'assistant', content: string): void {
     const session = this.sessions.get(senderId);
@@ -89,8 +154,29 @@ export class SessionService {
       session.state = 'IDLE';
       session.activeFlowId = null;
       session.flowStep = 0;
+      session.activeConditionalFlowId = null;
+      session.activeStepId = null;
+      session.flowPath = [];
+      session.flowStartedAt = null;
       session.flowData = {};
     }
+  }
+
+  /** Returns a read-only summary of all active sessions (for control group !sesiones command) */
+  getAllSessions(): SessionSummary[] {
+    return [...this.sessions.values()].map((s) => ({
+      senderId: s.senderId,
+      clientName: s.clientName,
+      state: s.state,
+      activeStepId: s.activeStepId,
+      activeFlowId: s.activeFlowId,
+      activeConditionalFlowId: s.activeConditionalFlowId,
+      lastActivityAt: s.lastActivityAt,
+    }));
+  }
+
+  get uptime(): number {
+    return Date.now() - this.startedAt.getTime();
   }
 
   private cleanExpired(): void {

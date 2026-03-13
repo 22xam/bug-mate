@@ -5,6 +5,7 @@ import type { MessageAdapter, IncomingMessage, OutgoingMessage, MediaType } from
 import { BotService } from '../../bot/bot.service';
 import { ConfigLoaderService } from '../../config/config-loader.service';
 import { BotConfigService } from '../../config/bot-config.service';
+import { SessionService } from '../../session/session.service';
 
 @Injectable()
 export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
@@ -20,6 +21,7 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
     private readonly botService: BotService,
     private readonly configLoader: ConfigLoaderService,
     private readonly botConfig: BotConfigService,
+    private readonly sessionService: SessionService,
   ) {
     this.client = new Client({
       authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
@@ -109,6 +111,23 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
     const text = message.body?.trim() ?? '';
     const groupId = this.botConfig.controlGroupId!;
 
+    // ── !ayuda ──────────────────────────────────────────────────
+    if (text === '!ayuda') {
+      const help = [
+        '🤖 *BugMate — Comandos disponibles*\n',
+        '`!ayuda` — Muestra este mensaje',
+        '`!estado` — Estado del bot y senders pausados',
+        '`!sesiones` — Lista sesiones activas con su estado',
+        '`!flujos` — Lista todos los flujos configurados',
+        '`!pausar <número>` — Pausar el bot para un número',
+        '`!reactivar <número>` — Reactivar el bot para un número',
+        '`!grupos` — Lista todos los grupos con sus IDs',
+      ].join('\n');
+      await this.client.sendMessage(groupId, help);
+      return;
+    }
+
+    // ── !grupos ─────────────────────────────────────────────────
     if (text === '!grupos') {
       const chats = await this.client.getChats();
       const groups = chats.filter((c) => c.isGroup);
@@ -121,19 +140,92 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
       return;
     }
 
+    // ── !estado ─────────────────────────────────────────────────
     if (text === '!estado') {
-      if (this.pausedSenders.size === 0) {
-        await this.client.sendMessage(groupId, '✅ El bot está activo para todos los clientes.');
+      const uptime = this.formatUptime(this.sessionService.uptime);
+      const provider = this.botConfig.aiProvider;
+      const sessions = this.sessionService.getAllSessions();
+      const pausedList =
+        this.pausedSenders.size > 0
+          ? [...this.pausedSenders].map((s) => `  • ${s.replace('@c.us', '')}`).join('\n')
+          : '  Ninguno';
+
+      const statusMsg = [
+        '📊 *Estado del bot*\n',
+        `⏱️ *Uptime:* ${uptime}`,
+        `🤖 *Proveedor IA:* ${provider}`,
+        `👥 *Sesiones activas:* ${sessions.length}`,
+        `⏸️ *Senders pausados:* ${this.pausedSenders.size}`,
+        pausedList !== '  Ninguno' ? `\n${pausedList}` : '',
+      ]
+        .filter(Boolean)
+        .join('\n');
+
+      await this.client.sendMessage(groupId, statusMsg);
+      return;
+    }
+
+    // ── !sesiones ────────────────────────────────────────────────
+    if (text === '!sesiones') {
+      const sessions = this.sessionService.getAllSessions();
+      if (sessions.length === 0) {
+        await this.client.sendMessage(groupId, '📭 No hay sesiones activas.');
         return;
       }
-      const lines = [...this.pausedSenders].map((s) => `• ${s.replace('@c.us', '')}`);
+
+      const lines = sessions.map((s) => {
+        const phone = s.senderId.replace('@c.us', '');
+        const name = s.clientName !== '👋' ? ` (${s.clientName})` : '';
+        const step = s.activeStepId ? ` → paso: \`${s.activeStepId}\`` : '';
+        const flow = s.activeConditionalFlowId
+          ? ` [flujo: ${s.activeConditionalFlowId}]`
+          : s.activeFlowId
+            ? ` [flujo: ${s.activeFlowId}]`
+            : '';
+        const ago = this.timeAgo(s.lastActivityAt);
+        return `• *${phone}*${name}\n  Estado: \`${s.state}\`${flow}${step}\n  Última actividad: ${ago}`;
+      });
+
       await this.client.sendMessage(
         groupId,
-        `⏸️ *Bot pausado para:*\n\n${lines.join('\n')}\n\nUsá \`!reactivar <número>\` para reactivarlo.`,
+        `👥 *Sesiones activas (${sessions.length}):*\n\n${lines.join('\n\n')}`,
       );
       return;
     }
 
+    // ── !flujos ─────────────────────────────────────────────────
+    if (text === '!flujos') {
+      const { flows, conditionalFlows } = this.configLoader.botConfig;
+      const lines: string[] = [];
+
+      if (conditionalFlows && Object.keys(conditionalFlows).length > 0) {
+        lines.push('*Flujos condicionales (nuevos):*');
+        for (const [id, flow] of Object.entries(conditionalFlows)) {
+          const stepCount = Object.keys(flow.steps).length;
+          const stepNames = Object.keys(flow.steps).join(', ');
+          lines.push(`• \`${id}\` — ${stepCount} pasos: ${stepNames}`);
+        }
+      }
+
+      if (Object.keys(flows).length > 0) {
+        if (lines.length > 0) lines.push('');
+        lines.push('*Flujos legacy (guided/ai):*');
+        for (const [id, flow] of Object.entries(flows)) {
+          const detail = flow.type === 'guided' ? `${flow.steps.length} pasos` : 'IA';
+          lines.push(`• \`${id}\` [${flow.type}] — ${detail}`);
+        }
+      }
+
+      if (lines.length === 0) {
+        await this.client.sendMessage(groupId, '⚠️ No hay flujos configurados.');
+        return;
+      }
+
+      await this.client.sendMessage(groupId, `🔀 *Flujos configurados:*\n\n${lines.join('\n')}`);
+      return;
+    }
+
+    // ── !pausar <número> ─────────────────────────────────────────
     const pauseMatch = text.match(/^!pausar\s+(\d+)$/);
     if (pauseMatch) {
       const senderId = `${pauseMatch[1]}@c.us`;
@@ -142,12 +234,21 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
       return;
     }
 
+    // ── !reactivar <número> ──────────────────────────────────────
     const reactivateMatch = text.match(/^!reactivar\s+(\d+)$/);
     if (reactivateMatch) {
       const senderId = `${reactivateMatch[1]}@c.us`;
       this.resumeSender(senderId);
       await this.client.sendMessage(groupId, `▶️ Bot reactivado para *${reactivateMatch[1]}*.`);
       return;
+    }
+
+    // ── Comando no reconocido ─────────────────────────────────────
+    if (text.startsWith('!')) {
+      await this.client.sendMessage(
+        groupId,
+        `❓ Comando no reconocido: \`${text}\`\n\nEscribí \`!ayuda\` para ver los comandos disponibles.`,
+      );
     }
   }
 
@@ -313,5 +414,26 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
     } catch {
       await new Promise((resolve) => setTimeout(resolve, typingMs));
     }
+  }
+
+  // ─── Formatting helpers ───────────────────────────────────────
+
+  private formatUptime(ms: number): string {
+    const totalSec = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSec / 3600);
+    const minutes = Math.floor((totalSec % 3600) / 60);
+    const seconds = totalSec % 60;
+    if (hours > 0) return `${hours}h ${minutes}m`;
+    if (minutes > 0) return `${minutes}m ${seconds}s`;
+    return `${seconds}s`;
+  }
+
+  private timeAgo(date: Date): string {
+    const diffMs = Date.now() - date.getTime();
+    const diffSec = Math.floor(diffMs / 1000);
+    if (diffSec < 60) return `hace ${diffSec}s`;
+    const diffMin = Math.floor(diffSec / 60);
+    if (diffMin < 60) return `hace ${diffMin}m`;
+    return `hace ${Math.floor(diffMin / 60)}h`;
   }
 }

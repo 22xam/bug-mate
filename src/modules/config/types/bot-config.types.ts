@@ -17,8 +17,12 @@ export interface MenuOption {
   label: string;
   /** Built-in actions that don't require a flow definition */
   action?: 'ESCALATE' | 'SHOW_MENU';
-  /** ID of a flow defined in the flows map — required when action is absent */
+  /** ID of a legacy flow defined in the flows map */
   flowId?: string;
+  /** ID of a conditional flow defined in the conditionalFlows map */
+  conditionalFlowId?: string;
+  /** Override the conditional flow's own startStep */
+  conditionalFlowStartStep?: string;
 }
 
 export interface MenuConfig {
@@ -115,8 +119,10 @@ export interface BotConfig {
   identity: BotIdentity;
   greeting: GreetingConfig;
   menu: MenuConfig;
-  /** Map of flowId → flow definition. Can be guided or ai. */
+  /** Map of flowId → legacy flow definition (guided or ai). */
   flows: Record<string, FlowDefinition>;
+  /** Map of flowId → conditional (graph-based) flow definition. */
+  conditionalFlows?: Record<string, import('./conditional-flow.types').ConditionalFlow>;
   humanDelay: HumanDelayConfig;
   ai: AiConfig;
   media: MediaConfig;

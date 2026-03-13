@@ -5,5 +5,12 @@
     "company": "Empresa Ejemplo S.A.",
     "systems": ["Sistema de Facturación"],
     "notes": "Usuaria principal del módulo de facturación"
+  },
+  {
+    "phone": "5492657201291",
+    "name": "Ignacio Becher",
+    "company": "Cima Tecno",
+    "systems": ["Plataforma de Gestión de Proyectos"],
+    "notes": "Reporta problemas frecuentes con la pasarela de pagos"
   }
 ]
