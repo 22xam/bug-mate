@@ -13,6 +13,8 @@
   },
   "menu": {
     "message": "Elegí una opción respondiendo con el número:",
+    "invalidChoiceMessage": "No entendí tu respuesta.",
+    "unrecognizedOptionMessage": "Opción no reconocida.",
     "options": [
       {
         "id": "1",
@@ -48,7 +50,11 @@
     },
     "queryKnowledge": {
       "inputPrompt": "Contame tu consulta y voy a buscar la información para ayudarte:",
+      "textOnlyMessage": "Por favor escribí tu consulta con texto.",
       "noResultMessage": "No encontré información específica sobre eso en mi base de conocimiento. Voy a notificar a *{developerName}* para que te ayude directamente.",
+      "noResultDeveloperNotification": "❓ *Consulta sin respuesta en base de conocimiento*\n\n📱 *Cliente:* {clientName} ({clientPhone})\n💬 *Consulta:* \"{query}\"",
+      "ragContextInstruction": "Respondé de forma natural y conversacional.",
+      "continuePrompt": "¿Hay algo más en lo que pueda ayudarte? Respondé *menú* para ver las opciones o escribí tu consulta.",
       "resultPrefix": "Encontré esto que puede ayudarte:"
     }
   },
@@ -80,6 +86,7 @@
       "comunicarme con el programador"
     ],
     "clientMessage": "Entendido. Voy a notificar a *{developerName}* para que se comunique con vos a la brevedad. Por favor aguardá su respuesta. 🙏",
-    "developerNotification": "🔔 *BugMate — Solicitud de soporte humano*\n\n📱 *Cliente:* {clientName} ({clientPhone})\n💬 *Mensaje:* \"{message}\""
+    "developerNotification": "🔔 *BugMate — Solicitud de soporte humano*\n\n📱 *Cliente:* {clientName} ({clientPhone})\n💬 *Mensaje:* \"{message}\"",
+    "alreadyEscalatedMessage": "Tu consulta ya fue enviada a *{developerName}*. En cuanto pueda se va a comunicar con vos. 🙏"
   }
 }

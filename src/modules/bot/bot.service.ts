@@ -47,9 +47,13 @@ export class BotService {
     }
 
     if (session.state === 'ESCALATED') {
-      await this.send(adapter, session.senderId,
-        `Tu consulta ya fue enviada a *${this.configLoader.botConfig.identity.developerName}*. ` +
-        `En cuanto pueda se va a comunicar con vos. 🙏`,
+      const { escalation, identity } = this.configLoader.botConfig;
+      await this.send(
+        adapter,
+        session.senderId,
+        this.configLoader.interpolate(escalation.alreadyEscalatedMessage, {
+          developerName: identity.developerName,
+        }),
       );
       return;
     }
@@ -105,7 +109,7 @@ export class BotService {
 
     if (!option) {
       const menuText = this.buildMenuText(
-        `No entendí tu respuesta. ${menu.message}`,
+        `${menu.invalidChoiceMessage} ${menu.message}`,
         menu.options.map((o) => `*${o.id}*. ${o.label}`),
       );
       await this.send(adapter, session.senderId, menuText);
@@ -123,7 +127,7 @@ export class BotService {
         await this.escalate(incoming, session, adapter);
         break;
       default:
-        await this.send(adapter, session.senderId, `Opción no reconocida.`);
+        await this.send(adapter, session.senderId, menu.unrecognizedOptionMessage);
     }
   }
 
@@ -207,7 +211,7 @@ export class BotService {
 
     const query = incoming.text?.trim();
     if (!query) {
-      await this.send(adapter, session.senderId, 'Por favor escribí tu consulta con texto.');
+      await this.send(adapter, session.senderId, queryKnowledge.textOnlyMessage);
       return;
     }
 
@@ -222,7 +226,7 @@ export class BotService {
           tone: identity.tone,
         }) +
         `\n\nUsá esta información para responder:\n---\n${knowledgeResult.content}\n---\n` +
-        `Respondé de forma natural y conversacional.`;
+        queryKnowledge.ragContextInstruction;
 
       const response = await this.ai.generate({ prompt: query, systemPrompt });
       this.sessionService.addToHistory(session.senderId, 'assistant', response.text);
@@ -236,9 +240,11 @@ export class BotService {
       await this.send(
         adapter,
         this.botConfig.developerWhatsAppId,
-        `❓ *Consulta sin respuesta en base de conocimiento*\n\n` +
-        `📱 *Cliente:* ${session.clientName} (${incoming.senderId.replace('@c.us', '')})\n` +
-        `💬 *Consulta:* "${query}"`,
+        this.configLoader.interpolate(queryKnowledge.noResultDeveloperNotification, {
+          clientName: session.clientName,
+          clientPhone: incoming.senderId.replace('@c.us', '').replace('@lid', ''),
+          query,
+        }),
       );
 
       this.sessionService.setState(session.senderId, 'ESCALATED');
@@ -249,11 +255,7 @@ export class BotService {
       await this.send(adapter, session.senderId, response.text);
     }
 
-    await this.send(
-      adapter,
-      session.senderId,
-      `¿Hay algo más en lo que pueda ayudarte? Respondé *menú* para ver las opciones o escribí tu consulta.`,
-    );
+    await this.send(adapter, session.senderId, queryKnowledge.continuePrompt);
     this.sessionService.setState(session.senderId, 'IDLE');
   }
 

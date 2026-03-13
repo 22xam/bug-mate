@@ -20,6 +20,8 @@ export interface MenuOption {
 
 export interface MenuConfig {
   message: string;
+  invalidChoiceMessage: string;
+  unrecognizedOptionMessage: string;
   options: MenuOption[];
 }
 
@@ -36,7 +38,11 @@ export interface ReportErrorFlow {
 
 export interface QueryKnowledgeFlow {
   inputPrompt: string;
+  textOnlyMessage: string;
   noResultMessage: string;
+  noResultDeveloperNotification: string;
+  ragContextInstruction: string;
+  continuePrompt: string;
   resultPrefix: string;
 }
 
@@ -67,6 +73,7 @@ export interface EscalationConfig {
   keywords: string[];
   clientMessage: string;
   developerNotification: string;
+  alreadyEscalatedMessage: string;
 }
 
 export interface BotConfig {
