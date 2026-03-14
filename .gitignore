@@ -4,6 +4,7 @@
 # WhatsApp session data (contains auth credentials — never commit)
 /.wwebjs_auth
 /wwebjs_auth
+/wwebjs_cache
 /node_modules
 /build
 
