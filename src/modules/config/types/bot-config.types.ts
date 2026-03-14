@@ -118,12 +118,6 @@ export interface EscalationConfig {
 export interface TrelloConfig {
   /** Whether Trello integration is active */
   enabled: boolean;
-  /**
-   * Named list map: key is a logical name (e.g. "bugs", "pendientes"),
-   * value is the Trello list ID where cards will be created.
-   * Use the !trello command in the control group to discover list IDs.
-   */
-  lists: Record<string, string>;
 }
 
 export interface BotConfig {
@@ -150,6 +144,12 @@ export interface ClientConfig {
   notes?: string;
   /** Knowledge doc filenames this client is allowed to query (e.g. ["cima-knowledge.md"]) */
   knowledgeDocs?: string[];
+  /**
+   * Trello list IDs for this client, keyed by logical name (e.g. "bugs", "pendientes").
+   * Use the !trello command in the control group to discover list IDs.
+   * Referenced in bot.config.json via {matchedClient.trelloLists.bugs}
+   */
+  trelloLists?: Record<string, string>;
 }
 
 export interface KnowledgeEntry {

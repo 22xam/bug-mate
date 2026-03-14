@@ -107,7 +107,7 @@
           "action": "NOTIFY_DEVELOPER",
           "notification": "🐛 *Nuevo reporte de error*\n\n👤 *Cliente:* {matchedClient.name}\n🏢 *Empresa:* {matchedClient.company}\n📱 *Teléfono:* {senderPhone}\n📝 *Descripción:* {errorDescription}\n📎 *Captura:* {errorScreenshot}\n🕐 *Hora:* {timestamp}\n📍 *Ruta:* {flowPath}",
           "trelloCard": {
-            "listKey": "bugs",
+            "listId": "{matchedClient.trelloLists.bugs}",
             "title": "🐛 [{matchedClient.company}] {errorDescription}",
             "description": "**Cliente:** {matchedClient.name}\n**Empresa:** {matchedClient.company}\n**Teléfono:** {senderPhone}\n**Descripción:** {errorDescription}\n**Captura:** {errorScreenshot}\n**Hora:** {timestamp}"
           },
@@ -220,11 +220,7 @@
     "unsupportedMessage": "Recibí tu {mediaType}, pero por ahora no puedo procesarlo directamente. ¿Podés describirme con texto qué necesitás?"
   },
   "trello": {
-    "enabled": true,
-    "lists": {
-      "bugs": "REEMPLAZAR_CON_ID_DE_LISTA_BUGS",
-      "pendientes": "REEMPLAZAR_CON_ID_DE_LISTA_PENDIENTES"
-    }
+    "enabled": true
   },
   "escalation": {
     "keywords": [

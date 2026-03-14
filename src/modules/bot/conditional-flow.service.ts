@@ -444,10 +444,11 @@ export class ConditionalFlowService {
       }
     }
 
-    if (action === 'CREATE_TRELLO_CARD' && trelloCard) {
+    if (trelloCard) {
+      const listId = this.interpolate(trelloCard.listId, vars);
       const title = this.interpolate(trelloCard.title, vars);
       const description = this.interpolate(trelloCard.description, vars);
-      await this.trelloService.createCard(trelloCard.listKey, title, description);
+      await this.trelloService.createCard(listId, title, description);
     }
 
     if (action === 'END') {

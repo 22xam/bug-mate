@@ -5,6 +5,10 @@
     "company": "Empresa Ejemplo S.A.",
     "systems": ["Sistema de Facturación"],
     "knowledgeDocs": ["empresa-ejemplo-knowledge.md"],
+    "trelloLists": {
+      "bugs": "ID_DE_COLUMNA_BUGS_DE_ESTE_CLIENTE",
+      "pendientes": "ID_DE_COLUMNA_PENDIENTES_DE_ESTE_CLIENTE"
+    },
     "notes": "Usuaria principal del módulo de facturación"
   },
   {
@@ -13,6 +17,10 @@
     "company": "Otra Empresa S.R.L.",
     "systems": ["Sistema de Gestión"],
     "knowledgeDocs": ["otra-empresa-knowledge.md"],
+    "trelloLists": {
+      "bugs": "ID_DE_COLUMNA_BUGS_DE_ESTE_CLIENTE",
+      "pendientes": "ID_DE_COLUMNA_PENDIENTES_DE_ESTE_CLIENTE"
+    },
     "notes": ""
   }
 ]

@@ -37,22 +37,18 @@ export class TrelloService {
 
   /**
    * Creates a card in a Trello list.
-   * @param listKey - Key from bot.config.json trello.lists (e.g. "bugs")
-   * @param title - Card title (supports {variable} interpolation already applied)
-   * @param description - Card description (supports {variable} interpolation already applied)
+   * @param listId - Direct Trello list ID (already interpolated from {matchedClient.trelloLists.bugs})
+   * @param title - Card title (already interpolated)
+   * @param description - Card description (already interpolated)
    */
-  async createCard(listKey: string, title: string, description: string): Promise<TrelloCard | null> {
+  async createCard(listId: string, title: string, description: string): Promise<TrelloCard | null> {
     if (!this.isEnabled) {
       this.logger.warn('Trello is not enabled — skipping card creation');
       return null;
     }
 
-    const { trello } = this.configLoader.botConfig;
-    if (!trello) return null;
-
-    const listId = trello.lists[listKey];
-    if (!listId) {
-      this.logger.error(`Trello list key "${listKey}" not found in bot.config.json trello.lists`);
+    if (!listId || listId.startsWith('{')) {
+      this.logger.error(`Trello listId is missing or unresolved: "${listId}". Check that the client has trelloLists configured.`);
       return null;
     }
 

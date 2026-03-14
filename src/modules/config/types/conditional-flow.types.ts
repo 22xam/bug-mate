@@ -26,10 +26,12 @@ export type StepAction = 'ESCALATE' | 'NOTIFY_DEVELOPER' | 'END' | 'SHOW_MENU' |
  */
 export interface TrelloCardConfig {
   /**
-   * Key of the list defined in bot.config.json trello.lists
-   * where the card will be created (e.g. "bugs", "pendientes").
+   * Trello list ID where the card will be created.
+   * Supports {variable} interpolation — use {matchedClient.trelloLists.bugs}
+   * to point to the current client's own Trello list.
+   * @example "{matchedClient.trelloLists.bugs}"
    */
-  listKey: string;
+  listId: string;
   /** Card title. Supports {variable} interpolation. */
   title: string;
   /** Card description (body). Supports {variable} interpolation. */
