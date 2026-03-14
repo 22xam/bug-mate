@@ -4,8 +4,8 @@
 
 <h1 align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=36&pause=1000&color=4ADE80&center=true&vCenter=true&width=435&lines=Bug-Mate+%F0%9F%A4%96"/>
-    <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=36&pause=1000&color=16A34A&center=true&vCenter=true&width=435&lines=Bug-Mate+%F0%9F%A4%96" alt="Bug-Mate"/>
+    <source media="(prefers-color-scheme: dark)" srcset="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=36&pause=1000&color=4ADE80&center=true&vCenter=true&width=300&lines=Bug-Mate"/>
+    <img src="https://readme-typing-svg.demolab.com?font=Fira+Code&weight=700&size=36&pause=1000&color=16A34A&center=true&vCenter=true&width=300&lines=Bug-Mate" alt="Bug-Mate"/>
   </picture>
 </h1>
 
