@@ -73,9 +73,10 @@ export class OllamaProvider implements AIProvider, EmbeddingProvider {
         this.httpService.post<OllamaEmbedResponse>(url, { model, prompt: text }),
       );
       return data.embedding;
-    } catch (error) {
-      this.logger.error(`Ollama embedding failed: ${(error as Error).message}`);
-      throw new Error(`Embedding error: ${(error as Error).message}`);
+    } catch (error: any) {
+      const msg = error.response?.data?.error || error.message || 'Unknown error';
+      this.logger.error(`Ollama embedding failed: ${msg}`);
+      throw new Error(`Embedding error: ${msg}`);
     }
   }
 }

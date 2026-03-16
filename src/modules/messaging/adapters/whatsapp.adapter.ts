@@ -102,8 +102,20 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
     }
 
     // Dev sent a message manually to a client → pause the bot for that sender
-    if (to.endsWith('@c.us')) {
+    if (to.endsWith('@c.us') || to.endsWith('@lid')) {
       this.pauseSender(to);
+
+      // Try to link @lid to @c.us just in case
+      if (to.endsWith('@lid')) {
+        try {
+          const contact = await message.getContact();
+          if (contact && contact.number) {
+            this.pauseSender(`${contact.number}@c.us`);
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
     }
   }
 
@@ -327,6 +339,24 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
     if (this.pausedSenders.has(message.from)) {
       this.logger.debug(`Bot paused for ${message.from} — skipping`);
       return;
+    }
+
+    // Unify @lid and @c.us for pausing purposes
+    if (message.from.endsWith('@lid')) {
+      try {
+        const contact = await message.getContact();
+        if (contact && contact.number) {
+          const phoneJid = `${contact.number}@c.us`;
+          if (this.pausedSenders.has(phoneJid)) {
+            this.logger.debug(`Bot paused for resolved phone ${phoneJid} (from ${message.from}) — skipping`);
+            // Auto-pause the @lid so future checks are faster
+            this.pauseSender(message.from);
+            return;
+          }
+        }
+      } catch (error) {
+        // ignore
+      }
     }
 
     const incoming = await this.buildIncomingMessage(message);

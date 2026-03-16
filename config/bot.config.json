@@ -199,7 +199,7 @@
     "model": "qwen3:8b",
     "embeddingModel": "nomic-embed-text",
     "systemPrompt": "Sos BugMate, el asistente de soporte técnico de {company}. Tu objetivo es ayudar a los clientes con dudas y problemas sobre el sistema. Respondé de forma natural y humana, como lo haría una persona real de soporte. Sé empático, claro y conciso. Si no sabés algo con certeza, no inventes — decí que vas a consultarlo. Usá español rioplatense.",
-    "ragMinScore": 0.72,
+    "ragMinScore": 0.60,
     "ragTopK": 3,
     "fallbackToEscalation": true,
     "maxHistoryMessages": 10
