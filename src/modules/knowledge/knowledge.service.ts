@@ -145,6 +145,13 @@ export class KnowledgeService implements OnModuleInit {
     this.logger.log(`Indexed ${toIndex.length} chunks into knowledge base`);
   }
 
+  /** Force a full re-index of all knowledge documents (called via CLI). */
+  async rebuild(): Promise<void> {
+    this.logger.log('Rebuilding knowledge index (forced)...');
+    this.db.exec('DELETE FROM vectors');
+    await this.indexKnowledge();
+  }
+
   private vectorSearch(queryEmbedding: number[], topK: number, allowedSources?: string[]): KnowledgeSearchResult[] {
     const rows = this.db.prepare('SELECT id, content, source, embedding FROM vectors').all() as VectorRow[];
 

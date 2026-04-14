@@ -3,6 +3,7 @@ import { Client, LocalAuth, Message, MessageTypes } from 'whatsapp-web.js';
 import * as qrcode from 'qrcode-terminal';
 import type { MessageAdapter, IncomingMessage, OutgoingMessage, MediaType } from '../../core/interfaces/message-adapter.interface';
 import { BotService } from '../../bot/bot.service';
+import { BotControlService } from '../../bot/bot-control.service';
 import { ConfigLoaderService } from '../../config/config-loader.service';
 import { BotConfigService } from '../../config/bot-config.service';
 import { SessionService } from '../../session/session.service';
@@ -15,9 +16,6 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
   private client: Client;
   private readyAt: number | null = null;
 
-  /** Senders for whom the bot is paused (dev took over the conversation) */
-  private readonly pausedSenders = new Set<string>();
-
   /** Whether the bot is currently sending a message programmatically (to ignore in message_create) */
   private isBotSending = false;
 
@@ -26,6 +24,7 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
 
   constructor(
     private readonly botService: BotService,
+    private readonly botControlService: BotControlService,
     private readonly configLoader: ConfigLoaderService,
     private readonly botConfig: BotConfigService,
     private readonly sessionService: SessionService,
@@ -114,18 +113,27 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
 
     // Dev sent a message manually to a client → pause the bot for that sender
     if (to.endsWith('@c.us') || to.endsWith('@lid')) {
-      this.pauseSender(to);
+      this.botControlService.pause(to);
 
-      // Try to link @lid to @c.us just in case
+      // Notify control group and try to link @lid to @c.us
       if (to.endsWith('@lid')) {
         try {
           const contact = await message.getContact();
           if (contact && contact.number) {
-            this.pauseSender(`${contact.number}@c.us`);
+            this.botControlService.pause(`${contact.number}@c.us`);
           }
         } catch (e) {
           // ignore
         }
+      }
+
+      // Notify control group
+      if (controlGroupId) {
+        const number = to.replace('@c.us', '').replace('@lid', '');
+        void this.client.sendMessage(
+          controlGroupId,
+          `⏸️ Bot pausado para *${number}* — tomaste el control de la conversación.\n\nUsá \`!reactivar ${number}\` cuando termines.`,
+        );
       }
     }
   }
@@ -178,9 +186,10 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
       const uptime = this.formatUptime(this.sessionService.uptime);
       const provider = this.botConfig.aiProvider;
       const sessions = this.sessionService.getAllSessions();
+      const pausedSenders = this.botControlService.getPausedSenders();
       const pausedList =
-        this.pausedSenders.size > 0
-          ? [...this.pausedSenders].map((s) => `  • ${s.replace('@c.us', '')}`).join('\n')
+        pausedSenders.length > 0
+          ? pausedSenders.map((s) => `  • ${s.replace('@c.us', '')}`).join('\n')
           : '  Ninguno';
 
       const statusMsg = [
@@ -188,8 +197,8 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
         `⏱️ *Uptime:* ${uptime}`,
         `🤖 *Proveedor IA:* ${provider}`,
         `👥 *Sesiones activas:* ${sessions.length}`,
-        `⏸️ *Senders pausados:* ${this.pausedSenders.size}`,
-        pausedList !== '  Ninguno' ? `\n${pausedList}` : '',
+        `⏸️ *Senders pausados:* ${pausedSenders.length}`,
+        pausedSenders.length > 0 ? `\n${pausedList}` : '',
       ]
         .filter(Boolean)
         .join('\n');
@@ -262,7 +271,7 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
     const pauseMatch = text.match(/^!pausar\s+(\d+)$/);
     if (pauseMatch) {
       const senderId = `${pauseMatch[1]}@c.us`;
-      this.pauseSender(senderId);
+      this.botControlService.pause(senderId);
       await this.client.sendMessage(groupId, `⏸️ Bot pausado para *${pauseMatch[1]}*.`);
       return;
     }
@@ -271,7 +280,7 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
     const reactivateMatch = text.match(/^!reactivar\s+(\d+)$/);
     if (reactivateMatch) {
       const senderId = `${reactivateMatch[1]}@c.us`;
-      this.resumeSender(senderId);
+      this.botControlService.resume(senderId);
       await this.client.sendMessage(groupId, `▶️ Bot reactivado para *${reactivateMatch[1]}*.`);
       return;
     }
@@ -353,7 +362,7 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
     }
 
     // Bot is paused for this sender — dev has taken over
-    if (this.pausedSenders.has(message.from)) {
+    if (this.botControlService.isPaused(message.from)) {
       this.logger.debug(`Bot paused for ${message.from} — skipping`);
       return;
     }
@@ -364,10 +373,10 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
         const contact = await message.getContact();
         if (contact && contact.number) {
           const phoneJid = `${contact.number}@c.us`;
-          if (this.pausedSenders.has(phoneJid)) {
+          if (this.botControlService.isPaused(phoneJid)) {
             this.logger.debug(`Bot paused for resolved phone ${phoneJid} (from ${message.from}) — skipping`);
             // Auto-pause the @lid so future checks are faster
-            this.pauseSender(message.from);
+            this.botControlService.pause(message.from);
             return;
           }
         }
@@ -401,29 +410,6 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
     } catch (error) {
       this.logger.error(`Error handling message: ${(error as Error).message}`);
     }
-  }
-
-  // ─── Pause / resume helpers ───────────────────────────────────
-
-  private pauseSender(senderId: string): void {
-    if (!this.pausedSenders.has(senderId)) {
-      this.pausedSenders.add(senderId);
-      this.logger.log(`Bot paused for ${senderId} (dev takeover)`);
-
-      const controlGroupId = this.botConfig.controlGroupId;
-      if (controlGroupId) {
-        const number = senderId.replace('@c.us', '');
-        void this.client.sendMessage(
-          controlGroupId,
-          `⏸️ Bot pausado para *${number}* — tomaste el control de la conversación.\n\nUsá \`!reactivar ${number}\` cuando termines.`,
-        );
-      }
-    }
-  }
-
-  private resumeSender(senderId: string): void {
-    this.pausedSenders.delete(senderId);
-    this.logger.log(`Bot resumed for ${senderId}`);
   }
 
   // ─── Log groups on ready ──────────────────────────────────────

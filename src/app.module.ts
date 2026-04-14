@@ -6,6 +6,7 @@ import { SessionModule } from './modules/session/session.module';
 import { KnowledgeModule } from './modules/knowledge/knowledge.module';
 import { BotModule } from './modules/bot/bot.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
+import { ApiModule } from './modules/api/api.module';
 
 @Module({
   imports: [
@@ -14,8 +15,9 @@ import { MessagingModule } from './modules/messaging/messaging.module';
     AiModule,          // GeminiProvider
     SessionModule,     // in-memory conversation state
     KnowledgeModule,   // FAQ + RAG with SQLite
-    BotModule,         // BotService
+    BotModule,         // BotService + BotControlService
     MessagingModule,   // WhatsAppAdapter
+    ApiModule,         // REST API for CLI control
   ],
 })
 export class AppModule {}
