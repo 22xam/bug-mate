@@ -254,6 +254,41 @@ export async function cmdTrello(client: ApiClient): Promise<void> {
 
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
+export async function cmdOpenRouterModels(client: ApiClient, kind = 'chat'): Promise<void> {
+  const path = kind === 'embeddings'
+    ? '/api/openrouter/embedding-models'
+    : kind === 'all'
+      ? '/api/openrouter/models?output=all'
+      : '/api/openrouter/models';
+  const { count, models } = await client.get<any>(path);
+
+  if (count === 0) {
+    console.log(warn('No se encontraron modelos de OpenRouter para ese filtro'));
+    return;
+  }
+
+  console.log(header(`Modelos OpenRouter (${count})`));
+
+  const rows = models.slice(0, 100).map((model: any) => [
+    model.id,
+    model.name ?? '-',
+    model.context_length ? String(model.context_length) : '-',
+    (model.architecture?.input_modalities ?? []).join(',') || '-',
+    (model.architecture?.output_modalities ?? []).join(',') || '-',
+  ]);
+
+  console.log(
+    table(
+      ['ID', 'Nombre', 'Contexto', 'Input', 'Output'],
+      rows,
+    ),
+  );
+
+  if (models.length > rows.length) {
+    console.log(info(`Mostrando ${rows.length} de ${models.length}. Usá /api/openrouter/models para ver el JSON completo.`));
+  }
+}
+
 function colorState(state: string): string {
   switch (state) {
     case 'IDLE':                     return `${c.dim}${state}${c.reset}`;

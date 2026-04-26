@@ -8,13 +8,14 @@ import * as cmds from './commands';
 const TOP_COMMANDS = [
   'status', 'sessions', 'session', 'flows',
   'pause', 'resume', 'paused', 'chat',
-  'knowledge', 'clients', 'config', 'trello',
+  'knowledge', 'clients', 'config', 'trello', 'openrouter',
   'clear', 'help', 'exit', 'quit',
 ];
 
 const SUB_COMMANDS: Record<string, string[]> = {
   session:   ['clear'],
   knowledge: ['search', 'rebuild'],
+  openrouter: ['models'],
 };
 
 function completer(line: string): [string[], string] {
@@ -181,6 +182,15 @@ async function dispatch(
       await cmds.cmdTrello(client);
       return true;
 
+    case 'openrouter': case 'or':
+      if (args[0] === 'models') {
+        const kind = args[1] === 'embeddings' || args[1] === 'all' ? args[1] : 'chat';
+        await cmds.cmdOpenRouterModels(client, kind);
+      } else {
+        console.log(info('Uso: openrouter models [embeddings|all]'));
+      }
+      return true;
+
     case 'clear': case 'cls':
       console.clear();
       return true;
@@ -309,6 +319,7 @@ ${c.bold}Comandos disponibles:${c.reset}
   ${cmd('clients')}                         Lista de clientes registrados
   ${cmd('config')}                          Configuración completa del bot
   ${cmd('trello')}                          Tableros y columnas de Trello
+  ${cmd('openrouter models')} ${arg('[embeddings|all]')} Modelos disponibles en OpenRouter
   ${cmd('clear')}                           Limpia la pantalla
   ${cmd('help')}                            Muestra esta ayuda
   ${cmd('exit')}                            Sale del CLI

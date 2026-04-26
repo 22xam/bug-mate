@@ -366,9 +366,19 @@ export class BotService {
       }
     }
 
-    const response = await this.ai.generate({ prompt: query, systemPrompt, history: session.history.slice(0, -1) });
-    this.sessionService.addToHistory(session.senderId, 'assistant', response.text);
-    await this.send(adapter, session.senderId, response.text);
+    try {
+      const response = await this.ai.generate({ prompt: query, systemPrompt, history: session.history.slice(0, -1) });
+      this.sessionService.addToHistory(session.senderId, 'assistant', response.text);
+      await this.send(adapter, session.senderId, response.text);
+    } catch (error) {
+      this.logger.error(`AI generation failed for ${session.senderId}: ${(error as Error).message}`);
+      const { identity } = this.configLoader.botConfig;
+      await this.send(
+        adapter,
+        session.senderId,
+        `Disculpá, compañero/a 🙏 En este momento estoy teniendo problemas para procesar tu consulta. Por favor intentá de nuevo en unos segundos, o escribí *menú* para volver al inicio.\n\nSi el problema persiste, podés contactar directamente a *${identity.developerName}*.`,
+      );
+    }
   }
 
   // ─── Escalation ──────────────────────────────────────────────

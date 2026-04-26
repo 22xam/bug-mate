@@ -9,15 +9,36 @@ export const botConfigSchema = Joi.object({
   PORT: Joi.number().default(3000),
 
   // ── Gemini ───────────────────────────────────────────────────
-  GEMINI_API_KEY: Joi.string().required().description('Google Gemini API key'),
+  GEMINI_API_KEY: Joi.string()
+    .empty('')
+    .when('AI_PROVIDER', {
+      is: 'gemini',
+      then: Joi.required(),
+      otherwise: Joi.optional(),
+    })
+    .description('Google Gemini API key'),
 
   // ── Ollama (optional, kept for backwards compat) ─────────────
   OLLAMA_URL: Joi.string().uri().default('http://localhost:11434'),
   OLLAMA_MODEL: Joi.string().default('qwen3:8b'),
   OLLAMA_AUTO_START: Joi.boolean().default(false),
 
+  // OpenRouter
+  OPENROUTER_API_KEY: Joi.string()
+    .empty('')
+    .when('AI_PROVIDER', {
+      is: 'openrouter',
+      then: Joi.required(),
+      otherwise: Joi.optional(),
+    })
+    .description('OpenRouter API key'),
+  OPENROUTER_BASE_URL: Joi.string().uri().default('https://openrouter.ai/api/v1'),
+  OPENROUTER_SITE_URL: Joi.string().uri().allow('').optional(),
+  OPENROUTER_APP_NAME: Joi.string().default('BugMate'),
+  OPENROUTER_EMBEDDING_DIMENSIONS: Joi.number().integer().positive().optional(),
+
   // ── AI provider selection ────────────────────────────────────
-  AI_PROVIDER: Joi.string().valid('gemini', 'ollama').default('gemini'),
+  AI_PROVIDER: Joi.string().valid('gemini', 'ollama', 'openrouter').default('gemini'),
 
   // ── Developer contact (secrets, not in JSON) ─────────────────
   DEVELOPER_NAME: Joi.string().required(),

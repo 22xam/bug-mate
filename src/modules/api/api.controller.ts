@@ -118,6 +118,13 @@ export class ApiController {
     return { ok: true, existed, number: body.number };
   }
 
+  @Post('resume/all')
+  resumeAll() {
+    const paused = this.botControlService.getPausedSenders();
+    paused.forEach((s) => this.botControlService.resume(s));
+    return { ok: true, resumed: paused.map((s) => s.replace('@c.us', '')) };
+  }
+
   // ─── Test message simulation ─────────────────────────────────
 
   @Post('test/message')
@@ -210,10 +217,13 @@ export class ApiController {
   // OpenRouter
 
   @Get('openrouter/models')
-  async getOpenRouterModels() {
-    const models = await this.openRouterProvider.listChatModels();
+  async getOpenRouterModels(@Query('output') output = 'text') {
+    const models = output === 'text'
+      ? await this.openRouterProvider.listChatModels()
+      : await this.openRouterProvider.listModels(output);
     return {
       provider: 'openrouter',
+      output,
       count: models.length,
       models,
     };

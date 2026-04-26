@@ -13,8 +13,8 @@ export class BotConfigService {
     return this.config.get<number>('PORT', 3000);
   }
 
-  get geminiApiKey(): string {
-    return this.config.getOrThrow<string>('GEMINI_API_KEY');
+  get geminiApiKey(): string | undefined {
+    return this.config.get<string>('GEMINI_API_KEY');
   }
 
   get ollamaUrl(): string {
@@ -42,8 +42,35 @@ export class BotConfigService {
     return this.config.get<string>('CONTROL_GROUP_ID') ?? null;
   }
 
-  get aiProvider(): 'gemini' | 'ollama' {
-    return this.config.get<'gemini' | 'ollama'>('AI_PROVIDER', 'gemini');
+  get openRouterApiKey(): string {
+    return this.config.getOrThrow<string>('OPENROUTER_API_KEY');
+  }
+
+  get openRouterApiKeyOptional(): string | undefined {
+    return this.config.get<string>('OPENROUTER_API_KEY') || undefined;
+  }
+
+  get openRouterBaseUrl(): string {
+    return this.config
+      .get<string>('OPENROUTER_BASE_URL', 'https://openrouter.ai/api/v1')
+      .replace(/\/+$/, '');
+  }
+
+  get openRouterSiteUrl(): string | undefined {
+    return this.config.get<string>('OPENROUTER_SITE_URL') || undefined;
+  }
+
+  get openRouterAppName(): string {
+    return this.config.get<string>('OPENROUTER_APP_NAME', 'BugMate');
+  }
+
+  get openRouterEmbeddingDimensions(): number | undefined {
+    const value = this.config.get<string>('OPENROUTER_EMBEDDING_DIMENSIONS');
+    return value ? Number(value) : undefined;
+  }
+
+  get aiProvider(): 'gemini' | 'ollama' | 'openrouter' {
+    return this.config.get<'gemini' | 'ollama' | 'openrouter'>('AI_PROVIDER', 'gemini');
   }
 
   get trelloEnabled(): boolean {

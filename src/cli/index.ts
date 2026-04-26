@@ -14,6 +14,7 @@
  *   npm run cli -- clients
  *   npm run cli -- config
  *   npm run cli -- trello
+ *   npm run cli -- openrouter models
  *   npm run cli -- knowledge search "mi consulta"
  *   npm run cli -- knowledge rebuild
  *   npm run cli -- paused
@@ -124,6 +125,17 @@ async function runDirect(client: ApiClient, args: string[]): Promise<void> {
       await cmds.cmdTrello(client);
       break;
 
+    case 'openrouter':
+    case 'or':
+      if (rest[0] === 'models') {
+        const kind = rest[1] === 'embeddings' || rest[1] === 'all' ? rest[1] : 'chat';
+        await cmds.cmdOpenRouterModels(client, kind);
+      } else {
+        console.log(info('Uso: openrouter models [embeddings|all]'));
+        process.exit(1);
+      }
+      break;
+
     case 'knowledge':
     case 'k':
       if (rest[0] === 'search') {
@@ -179,6 +191,7 @@ ${c.bold}Comandos:${c.reset}
   clients                            Lista de clientes
   config                             Configuración del bot
   trello                             Tableros de Trello
+  openrouter models [embeddings|all] Modelos disponibles en OpenRouter
   knowledge search <query>           Buscar en base de conocimiento
   knowledge rebuild                  Reconstruir índice
   chat <número>                      Simular conversación (solo en REPL)

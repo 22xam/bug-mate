@@ -53,19 +53,30 @@ export class GeminiProvider implements AIProvider, OnModuleInit {
 
     this.logger.debug(`Generating response${request.imageBase64 ? ' (with image)' : ''}`);
 
-    try {
-      const result = await this.getClient().models.generateContent({
-        model: this.modelName,
-        contents: [{ role: 'user', parts }],
-      });
-      return {
-        text: result.text ?? '',
-        metadata: { model: ai.model },
-      };
-    } catch (error) {
-      this.logger.error(`Gemini generation failed: ${(error as Error).message}`);
-      throw new Error(`AI provider error: ${(error as Error).message}`);
+    const maxAttempts = 3;
+    let lastError: Error = new Error('Unknown error');
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const result = await this.getClient().models.generateContent({
+          model: this.modelName,
+          contents: [{ role: 'user', parts }],
+        });
+        return {
+          text: result.text ?? '',
+          metadata: { model: ai.model },
+        };
+      } catch (error) {
+        lastError = error as Error;
+        this.logger.warn(`Gemini attempt ${attempt}/${maxAttempts} failed: ${lastError.message}`);
+        if (attempt < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 2000 * attempt));
+        }
+      }
     }
+
+    this.logger.error(`Gemini generation failed after ${maxAttempts} attempts: ${lastError.message}`);
+    throw new Error(`AI provider error: ${lastError.message}`);
   }
 
   async embed(text: string): Promise<number[]> {
