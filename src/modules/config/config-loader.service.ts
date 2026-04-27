@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { readFileSync, existsSync, readdirSync } from 'fs';
 import { join } from 'path';
 import type { BotConfig, ClientConfig, KnowledgeEntry } from './types/bot-config.types';
+import type { CampaignConfig } from './types/campaign.types';
 
 /**
  * Loads and validates all JSON configuration files at startup.
@@ -16,12 +17,14 @@ export class ConfigLoaderService implements OnModuleInit {
   private _clients: ClientConfig[];
   private _knowledge: KnowledgeEntry[];
   private _knowledgeDocs: Array<{ filename: string; content: string }>;
+  private _campaigns: CampaignConfig[];
 
   onModuleInit(): void {
     this.logger.log('Loading JSON configuration files...');
     this._botConfig = this.loadJson<BotConfig>('bot.config.json');
     this._clients = this.loadJson<ClientConfig[]>('clients.json');
     this._knowledge = this.loadJson<KnowledgeEntry[]>('knowledge.json');
+    this._campaigns = this.loadOptionalJson<CampaignConfig[]>('campaigns.json', []);
     this._knowledgeDocs = this.loadKnowledgeDocs();
     this.logger.log(
       `Config loaded — ${this._clients.length} clients, ` +
@@ -44,6 +47,10 @@ export class ConfigLoaderService implements OnModuleInit {
 
   get knowledgeDocs(): Array<{ filename: string; content: string }> {
     return this._knowledgeDocs;
+  }
+
+  get campaigns(): CampaignConfig[] {
+    return this._campaigns;
   }
 
   /**
@@ -75,6 +82,14 @@ export class ConfigLoaderService implements OnModuleInit {
     } catch (err) {
       throw new Error(`Failed to parse ${filename}: ${(err as Error).message}`);
     }
+  }
+
+  private loadOptionalJson<T>(filename: string, fallback: T): T {
+    const path = join(this.configDir, filename);
+    if (!existsSync(path)) {
+      return fallback;
+    }
+    return this.loadJson<T>(filename);
   }
 
   private loadKnowledgeDocs(): Array<{ filename: string; content: string }> {

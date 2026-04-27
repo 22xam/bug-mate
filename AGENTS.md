@@ -27,6 +27,14 @@ Run commands from `bug-mate/`.
 - Dev server: `npm run start:dev`
 - CLI: `npm run cli -- status`
 - OpenRouter models: `npm run cli -- openrouter models`
+- Campaigns CLI: `npm run cli -- campaigns`
+- Run campaign: `npm run cli -- campaigns run <campaign-id>`
+- Opt-outs CLI: `npm run cli -- optouts`
+- Clients CLI: `npm run cli -- clients`
+- Runtime skills CLI: `npm run cli -- skills`
+- Search agent skills: `npm run skills:find -- <query>`
+- Install an agent skill: `npm run skills:add -- <source> --skill <skill-name> -g -y`
+- Reinstall find-skills: `npm run skills:install:find`
 
 ## Local Files and Secrets
 
@@ -44,11 +52,14 @@ Use `.env.example`, `config/clients.example.json`, and `config/bot.config.exampl
 ## Implementation Notes
 
 - Prefer changing JSON configuration for bot behavior when the requested outcome can be achieved without code changes.
+- When a task needs specialized workflow knowledge, search for a relevant skill first with `npm run skills:find -- <query>`. Prefer reputable sources and review a skill before using it because skills run with full agent permissions.
 - Keep flow changes consistent with the conditional-flow DSL documented in `README.md`.
 - When modifying step types or flow behavior, update both runtime handling and the relevant types under `src/modules/config/types/`.
 - Preserve the existing NestJS dependency-injection style and provider tokens from `src/modules/core/tokens/injection-tokens.ts`.
 - OpenRouter uses `AI_PROVIDER=openrouter`, `OPENROUTER_API_KEY`, and OpenRouter model IDs in `config/bot.config.json` (`ai.model` and `ai.embeddingModel`).
 - The app uses TypeScript with `module`/`moduleResolution` set to `nodenext`.
+- CLI resource commands live under `src/cli/` and should go through `ApiClient`.
+- Planned REST resources used by the CLI are `/api/campaigns`, `/api/campaign-runs`, `/api/opt-outs`, `/api/clients`, and `/api/skills`.
 
 ## Verification
 

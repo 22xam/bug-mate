@@ -103,6 +103,15 @@ export async function cmdResume(client: ApiClient, number: string): Promise<void
     console.log(fail('Indicá un número: resume <número>'));
     return;
   }
+  if (number === 'all') {
+    const res = await client.post<any>('/api/resume/all');
+    console.log(ok(`Bot reanudado para ${res.resumed.length} senders`));
+    if (res.resumed.length > 0) {
+      console.log(`  ${c.dim}${res.resumed.join(', ')}${c.reset}`);
+    }
+    return;
+  }
+
   const res = await client.post<any>('/api/resume', { number });
   console.log(res.existed ? ok(`Bot reanudado para ${c.bold}${number}${c.reset}`) : info(`No estaba pausado para ${number}`));
 }
@@ -124,6 +133,37 @@ export async function cmdPaused(client: ApiClient): Promise<void> {
 export async function cmdClients(client: ApiClient): Promise<void> {
   const clients = await client.get<any[]>('/api/clients');
 
+  printClients(clients);
+}
+
+export async function cmdClientShow(client: ApiClient, phone: string): Promise<void> {
+  if (!phone) {
+    console.log(fail('Indicá un teléfono: clients show <teléfono>'));
+    return;
+  }
+
+  const clientData = await client.get<any>(`/api/clients/${encodeURIComponent(phone)}`);
+  console.log(header(`Cliente ${phone}`));
+  printObject(clientData);
+}
+
+export async function cmdClientAdd(client: ApiClient, args: string[]): Promise<void> {
+  const json = readJsonFlag(args);
+  const phone = args[0];
+  const name = args.slice(1).join(' ');
+
+  if (!json && (!phone || !name)) {
+    console.log(fail('Uso: clients add <teléfono> <nombre>  |  clients add --json \'{"phone":"...","name":"..."}\''));
+    return;
+  }
+
+  const body = json ?? { phone, name };
+  const res = await client.post<any>('/api/clients', body);
+  console.log(ok(res?.message ?? 'Cliente creado'));
+  if (res && typeof res === 'object' && !res.message) printObject(res);
+}
+
+function printClients(clients: any[]): void {
   if (clients.length === 0) {
     console.log(info('No hay clientes configurados'));
     return;
@@ -138,6 +178,184 @@ export async function cmdClients(client: ApiClient): Promise<void> {
     c.plan ?? '—',
   ]);
   console.log(table(['Nombre', 'Teléfono', 'Email', 'Plan'], rows));
+}
+
+// ─── Campaigns ───────────────────────────────────────────────────────────────
+
+async function cmdCampaignsUnused(client: ApiClient): Promise<void> {
+  const res = await client.get<any>('/api/campaigns');
+  const campaigns = normalizeList(res, 'campaigns');
+
+  if (campaigns.length === 0) {
+    console.log(info('No hay campañas configuradas'));
+    return;
+  }
+
+  console.log(header(`Campañas (${campaigns.length})`));
+  const rows = campaigns.map((campaign) => [
+    String(campaign.id ?? campaign.slug ?? '—'),
+    campaign.name ?? campaign.title ?? '—',
+    campaign.status ?? '—',
+    String(campaign.audienceCount ?? campaign.recipientsCount ?? campaign.clientsCount ?? '—'),
+    formatDate(campaign.createdAt ?? campaign.updatedAt),
+  ]);
+  console.log(table(['ID', 'Nombre', 'Estado', 'Audiencia', 'Fecha'], rows));
+}
+
+export async function cmdCampaignShow(client: ApiClient, campaignId: string): Promise<void> {
+  if (!campaignId) {
+    console.log(fail('Indicá una campaña: campaigns show <id>'));
+    return;
+  }
+
+  const campaign = await client.get<any>(`/api/campaigns/${encodeURIComponent(campaignId)}`);
+  console.log(header(`Campaña ${campaignId}`));
+  printObject(campaign);
+}
+
+export async function cmdCampaignCreate(client: ApiClient, args: string[]): Promise<void> {
+  const json = readJsonFlag(args);
+  const name = args[0];
+  const message = args.slice(1).join(' ');
+
+  if (!json && (!name || !message)) {
+    console.log(fail('Uso: campaigns create <nombre> <mensaje>  |  campaigns create --json \'{"name":"...","message":"..."}\''));
+    return;
+  }
+
+  const body = json ?? { name, message };
+  const res = await client.post<any>('/api/campaigns', body);
+  console.log(ok(res?.message ?? 'Campaña creada'));
+  if (res && typeof res === 'object' && !res.message) printObject(res);
+}
+
+export async function cmdCampaignRun(client: ApiClient, args: string[]): Promise<void> {
+  const campaignId = args[0];
+  if (!campaignId) {
+    console.log(fail('Uso: campaigns run <id> [--dry-run] [--phones=549...,549...]'));
+    return;
+  }
+
+  const body: Record<string, unknown> = { campaignId };
+  if (args.includes('--dry-run')) body.dryRun = true;
+  const phones = readOption(args, '--phones');
+  if (phones) body.phones = phones.split(',').map((phone) => phone.trim()).filter(Boolean);
+
+  const res = await client.post<any>('/api/campaign-runs', body);
+  console.log(ok(res?.message ?? 'Ejecución de campaña creada'));
+  printRunSummary(res);
+}
+
+export async function cmdCampaignRuns(client: ApiClient, campaignId?: string): Promise<void> {
+  const path = campaignId
+    ? `/api/campaign-runs?campaignId=${encodeURIComponent(campaignId)}`
+    : '/api/campaign-runs';
+  const res = await client.get<any>(path);
+  const runs = normalizeList(res, 'runs');
+
+  if (runs.length === 0) {
+    console.log(info('No hay ejecuciones de campañas'));
+    return;
+  }
+
+  console.log(header(`Ejecuciones de campaña (${runs.length})`));
+  const rows = runs.map((run) => [
+    String(run.id ?? run.runId ?? '—'),
+    String(run.campaignId ?? run.campaign?.id ?? '—'),
+    run.status ?? '—',
+    String(run.sent ?? run.sentCount ?? 0),
+    String(run.failed ?? run.failedCount ?? 0),
+    formatDate(run.createdAt ?? run.startedAt ?? run.finishedAt),
+  ]);
+  console.log(table(['Run', 'Campaña', 'Estado', 'Enviados', 'Fallidos', 'Fecha'], rows));
+}
+
+// ─── Opt-outs ────────────────────────────────────────────────────────────────
+
+export async function cmdOptOuts(client: ApiClient): Promise<void> {
+  const res = await client.get<any>('/api/opt-outs');
+  const optOuts = normalizeList(res, 'optOuts');
+
+  if (optOuts.length === 0) {
+    console.log(info('No hay opt-outs registrados'));
+    return;
+  }
+
+  console.log(header(`Opt-outs (${optOuts.length})`));
+  const rows = optOuts.map((item) => [
+    item.phone ?? item.number ?? item.senderId ?? '—',
+    item.reason ?? '—',
+    formatDate(item.createdAt ?? item.optedOutAt),
+  ]);
+  console.log(table(['Teléfono', 'Motivo', 'Fecha'], rows));
+}
+
+export async function cmdOptOutAdd(client: ApiClient, args: string[]): Promise<void> {
+  const phone = args[0];
+  const reason = args.slice(1).join(' ');
+
+  if (!phone) {
+    console.log(fail('Uso: optouts add <teléfono> [motivo]'));
+    return;
+  }
+
+  const res = await client.post<any>('/api/opt-outs', { phone, reason: reason || undefined });
+  console.log(ok(res?.message ?? `Opt-out registrado para ${phone}`));
+}
+
+export async function cmdOptOutRemove(client: ApiClient, phone: string): Promise<void> {
+  if (!phone) {
+    console.log(fail('Uso: optouts remove <teléfono>'));
+    return;
+  }
+
+  const res = await client.del<any>(`/api/opt-outs/${encodeURIComponent(phone)}`);
+  console.log(ok(res?.message ?? `Opt-out eliminado para ${phone}`));
+}
+
+// ─── Skills ──────────────────────────────────────────────────────────────────
+
+export async function cmdSkills(client: ApiClient): Promise<void> {
+  const res = await client.get<any>('/api/skills');
+  const skills = normalizeList(res, 'skills');
+
+  if (skills.length === 0) {
+    console.log(info('No hay skills registrados'));
+    return;
+  }
+
+  console.log(header(`Skills (${skills.length})`));
+  const rows = skills.map((skill) => [
+    String(skill.id ?? skill.name ?? '—'),
+    skill.title ?? skill.description ?? '—',
+    skill.enabled === false ? 'off' : 'on',
+  ]);
+  console.log(table(['ID', 'Descripción', 'Estado'], rows));
+}
+
+export async function cmdSkillShow(client: ApiClient, skillId: string): Promise<void> {
+  if (!skillId) {
+    console.log(fail('Uso: skills show <id>'));
+    return;
+  }
+
+  const skill = await client.get<any>(`/api/skills/${encodeURIComponent(skillId)}`);
+  console.log(header(`Skill ${skillId}`));
+  printObject(skill);
+}
+
+export async function cmdSkillRun(client: ApiClient, args: string[]): Promise<void> {
+  const skillId = args[0];
+  const input = args.slice(1).join(' ');
+
+  if (!skillId) {
+    console.log(fail('Uso: skills run <id> [input]'));
+    return;
+  }
+
+  const res = await client.post<any>(`/api/skills/${encodeURIComponent(skillId)}/run`, { input });
+  console.log(ok(res?.message ?? `Skill ${skillId} ejecutado`));
+  if (res && typeof res === 'object' && !res.message) printObject(res);
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -289,6 +507,108 @@ export async function cmdOpenRouterModels(client: ApiClient, kind = 'chat'): Pro
   }
 }
 
+export async function cmdCampaigns(client: ApiClient): Promise<void> {
+  const campaigns = await client.get<any[]>('/api/campaigns');
+  if (campaigns.length === 0) {
+    console.log(warn('No hay campañas configuradas. Creá config/campaigns.json desde campaigns.example.json.'));
+    return;
+  }
+  console.log(header(`Campañas (${campaigns.length})`));
+  console.log(table(
+    ['ID', 'Nombre', 'Estado', 'Audiencia'],
+    campaigns.map((campaign) => [
+      campaign.id,
+      campaign.name,
+      campaign.enabled ? 'activa' : 'inactiva',
+      campaign.audience?.mode ?? '-',
+    ]),
+  ));
+}
+
+export async function cmdCampaignPreview(client: ApiClient, id: string, limit = 5): Promise<void> {
+  if (!id) {
+    console.log(fail('Uso: campaign preview <id> [limit]'));
+    return;
+  }
+  const items = await client.post<any[]>(`/api/campaigns/${id}/preview`, { limit });
+  console.log(header(`Preview ${id}`));
+  for (const item of items) {
+    console.log(`\n${c.bold}${item.name ?? item.phone}${c.reset} ${c.dim}${item.phone}${c.reset}`);
+    console.log(item.skipped ? warn(`Omitido: ${item.reason}`) : item.message);
+  }
+}
+
+async function cmdCampaignRunUnused(client: ApiClient, id: string, dryRun = false): Promise<void> {
+  if (!id) {
+    console.log(fail('Uso: campaign run <id> [dry]'));
+    return;
+  }
+  const run = await client.post<any>(`/api/campaigns/${id}/runs`, { dryRun });
+  console.log(ok(`Corrida creada: ${run.id}`));
+  console.log(`  Estado: ${run.status}`);
+  console.log(`  Totales: ${JSON.stringify(run.totals)}`);
+}
+
+export async function cmdCampaignStatus(client: ApiClient, id?: string): Promise<void> {
+  if (!id) {
+    const runs = await client.get<any[]>('/api/campaign-runs');
+    console.log(header(`Corridas (${runs.length})`));
+    console.log(table(
+      ['ID', 'Campaña', 'Estado', 'Totales'],
+      runs.map((run) => [run.id, run.campaignId, run.status, JSON.stringify(run.totals)]),
+    ));
+    return;
+  }
+  const run = await client.get<any>(`/api/campaign-runs/${id}`);
+  console.log(header(`Corrida ${id}`));
+  console.log(`Estado: ${run.status}`);
+  console.log(`Totales: ${JSON.stringify(run.totals)}`);
+  console.log(table(
+    ['ID', 'Teléfono', 'Estado', 'Intentos', 'Error'],
+    run.jobs.map((job: any) => [job.id, job.phone, job.status, String(job.attempts), job.error ?? '-']),
+  ));
+}
+
+export async function cmdCampaignAction(client: ApiClient, action: string, id: string): Promise<void> {
+  if (!id || !['pause', 'resume', 'cancel', 'process-next'].includes(action)) {
+    console.log(fail('Uso: campaign <pause|resume|cancel|process-next> <runId>'));
+    return;
+  }
+  const run = await client.post<any>(`/api/campaign-runs/${id}/${action}`);
+  console.log(ok(`Corrida ${id}: ${run.status}`));
+}
+
+async function cmdOptOutsUnused(client: ApiClient): Promise<void> {
+  const entries = await client.get<any[]>('/api/opt-outs');
+  if (entries.length === 0) {
+    console.log(info('No hay opt-outs registrados'));
+    return;
+  }
+  console.log(header(`Opt-outs (${entries.length})`));
+  console.log(table(
+    ['Teléfono', 'Origen', 'Motivo'],
+    entries.map((entry) => [entry.phone, entry.source, entry.reason ?? '-']),
+  ));
+}
+
+async function cmdOptOutAddUnused(client: ApiClient, phone: string, reason?: string): Promise<void> {
+  if (!phone) {
+    console.log(fail('Uso: optout add <telefono> [motivo]'));
+    return;
+  }
+  const entry = await client.post<any>('/api/opt-outs', { phone, reason });
+  console.log(ok(`Opt-out registrado para ${entry.phone}`));
+}
+
+async function cmdOptOutRemoveUnused(client: ApiClient, phone: string): Promise<void> {
+  if (!phone) {
+    console.log(fail('Uso: optout remove <telefono>'));
+    return;
+  }
+  const result = await client.del<any>(`/api/opt-outs/${phone}`);
+  console.log(result.ok ? ok(`Opt-out removido para ${phone}`) : warn(`No existía opt-out para ${phone}`));
+}
+
 function colorState(state: string): string {
   switch (state) {
     case 'IDLE':                     return `${c.dim}${state}${c.reset}`;
@@ -306,4 +626,59 @@ function timeAgo(date: Date): string {
   const diffMin = Math.floor(diffSec / 60);
   if (diffMin < 60) return `hace ${diffMin}m`;
   return `hace ${Math.floor(diffMin / 60)}h`;
+}
+
+function normalizeList(res: any, key: string): any[] {
+  if (Array.isArray(res)) return res;
+  if (Array.isArray(res?.[key])) return res[key];
+  if (Array.isArray(res?.items)) return res.items;
+  if (Array.isArray(res?.data)) return res.data;
+  return [];
+}
+
+function readJsonFlag(args: string[]): any | undefined {
+  const index = args.indexOf('--json');
+  if (index === -1) return undefined;
+  const raw = args[index + 1];
+  if (!raw) throw new Error('Falta el cuerpo JSON despues de --json');
+  args.splice(index, 2);
+  return JSON.parse(raw);
+}
+
+function readOption(args: string[], name: string): string | undefined {
+  const inline = args.find((arg) => arg.startsWith(`${name}=`));
+  if (inline) return inline.slice(name.length + 1);
+
+  const index = args.indexOf(name);
+  if (index !== -1) return args[index + 1];
+
+  return undefined;
+}
+
+function formatDate(value: unknown): string {
+  if (!value) return '—';
+  const date = new Date(String(value));
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString();
+}
+
+function printRunSummary(res: any): void {
+  if (!res || typeof res !== 'object') return;
+
+  const rows = [
+    ['Enviados', res.sent ?? res.sentCount],
+    ['Fallidos', res.failed ?? res.failedCount],
+    ['Omitidos', res.skipped ?? res.skippedCount],
+    ['Estado', res.status],
+  ].filter(([, value]) => value !== undefined);
+
+  if (rows.length > 0) {
+    console.log(table(['Métrica', 'Valor'], rows.map(([name, value]) => [String(name), String(value)])));
+  } else if (!res.message) {
+    printObject(res);
+  }
+}
+
+function printObject(value: unknown): void {
+  console.log(`${c.dim}${JSON.stringify(value, null, 2)}${c.reset}`);
 }

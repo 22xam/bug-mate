@@ -3,6 +3,8 @@ import { HttpModule } from '@nestjs/axios';
 import { GeminiProvider } from './providers/gemini.provider';
 import { OllamaProvider } from './providers/ollama.provider';
 import { OpenRouterProvider } from './providers/openrouter.provider';
+import { AiConversationService } from './ai-conversation.service';
+import { RagContextService } from './rag-context.service';
 import { AI_PROVIDER, EMBEDDING_PROVIDER } from '../core/tokens/injection-tokens';
 import { AppConfigModule } from '../config/config.module';
 import { BotConfigService } from '../config/bot-config.service';
@@ -13,6 +15,8 @@ import { BotConfigService } from '../config/bot-config.service';
     GeminiProvider,
     OllamaProvider,
     OpenRouterProvider,
+    RagContextService,
+    AiConversationService,
     {
       provide: AI_PROVIDER,
       inject: [BotConfigService, GeminiProvider, OllamaProvider, OpenRouterProvider],
@@ -43,6 +47,14 @@ import { BotConfigService } from '../config/bot-config.service';
       },
     },
   ],
-  exports: [AI_PROVIDER, EMBEDDING_PROVIDER, GeminiProvider, OllamaProvider, OpenRouterProvider],
+  exports: [
+    AI_PROVIDER,
+    EMBEDDING_PROVIDER,
+    GeminiProvider,
+    OllamaProvider,
+    OpenRouterProvider,
+    RagContextService,
+    AiConversationService,
+  ],
 })
 export class AiModule {}

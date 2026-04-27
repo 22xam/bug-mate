@@ -171,13 +171,6 @@ export class ApiController {
     return { ok: true, message: 'Índice de conocimiento reconstruido exitosamente' };
   }
 
-  // ─── Clients ─────────────────────────────────────────────────
-
-  @Get('clients')
-  getClients() {
-    return this.configLoader.clients;
-  }
-
   // ─── Config ──────────────────────────────────────────────────
 
   @Get('config')

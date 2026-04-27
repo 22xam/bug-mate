@@ -8,13 +8,18 @@ import * as cmds from './commands';
 const TOP_COMMANDS = [
   'status', 'sessions', 'session', 'flows',
   'pause', 'resume', 'paused', 'chat',
-  'knowledge', 'clients', 'config', 'trello', 'openrouter',
+  'knowledge', 'clients', 'campaigns', 'optouts', 'skills',
+  'config', 'trello', 'openrouter',
   'clear', 'help', 'exit', 'quit',
 ];
 
 const SUB_COMMANDS: Record<string, string[]> = {
   session:   ['clear'],
   knowledge: ['search', 'rebuild'],
+  clients:   ['list', 'show', 'add'],
+  campaigns: ['list', 'show', 'create', 'run', 'runs'],
+  optouts:   ['list', 'add', 'remove'],
+  skills:    ['list', 'show', 'run'],
   openrouter: ['models'],
 };
 
@@ -171,7 +176,55 @@ async function dispatch(
       return true;
 
     case 'clients': case 'c':
-      await cmds.cmdClients(client);
+      if (!args[0] || args[0] === 'list') {
+        await cmds.cmdClients(client);
+      } else if (args[0] === 'show') {
+        await cmds.cmdClientShow(client, args[1]);
+      } else if (args[0] === 'add') {
+        await cmds.cmdClientAdd(client, args.slice(1));
+      } else {
+        console.log(info('Uso: clients [list] | clients show <teléfono> | clients add <teléfono> <nombre>'));
+      }
+      return true;
+
+    case 'campaigns': case 'camp':
+      if (!args[0] || args[0] === 'list') {
+        await cmds.cmdCampaigns(client);
+      } else if (args[0] === 'show') {
+        await cmds.cmdCampaignShow(client, args[1]);
+      } else if (args[0] === 'create') {
+        await cmds.cmdCampaignCreate(client, args.slice(1));
+      } else if (args[0] === 'run') {
+        await cmds.cmdCampaignRun(client, args.slice(1));
+      } else if (args[0] === 'runs') {
+        await cmds.cmdCampaignRuns(client, args[1]);
+      } else {
+        console.log(info('Uso: campaigns [list] | campaigns show <id> | campaigns create <nombre> <mensaje> | campaigns run <id> | campaigns runs [id]'));
+      }
+      return true;
+
+    case 'optouts': case 'opt-outs':
+      if (!args[0] || args[0] === 'list') {
+        await cmds.cmdOptOuts(client);
+      } else if (args[0] === 'add') {
+        await cmds.cmdOptOutAdd(client, args.slice(1));
+      } else if (args[0] === 'remove' || args[0] === 'delete') {
+        await cmds.cmdOptOutRemove(client, args[1]);
+      } else {
+        console.log(info('Uso: optouts [list] | optouts add <teléfono> [motivo] | optouts remove <teléfono>'));
+      }
+      return true;
+
+    case 'skills':
+      if (!args[0] || args[0] === 'list') {
+        await cmds.cmdSkills(client);
+      } else if (args[0] === 'show') {
+        await cmds.cmdSkillShow(client, args[1]);
+      } else if (args[0] === 'run') {
+        await cmds.cmdSkillRun(client, args.slice(1));
+      } else {
+        console.log(info('Uso: skills [list] | skills show <id> | skills run <id> [input]'));
+      }
       return true;
 
     case 'config': case 'cfg':
@@ -311,12 +364,25 @@ ${c.bold}Comandos disponibles:${c.reset}
   ${cmd('session clear')} ${arg('<número>')}        Limpia la sesión de un número
   ${cmd('flows')}                           Flujos configurados
   ${cmd('pause')} ${arg('<número>')}               Pausa el bot para ese número
-  ${cmd('resume')} ${arg('<número>')}              Reanuda el bot para ese número
+  ${cmd('resume')} ${arg('<número|all>')}          Reanuda el bot para ese número o todos
   ${cmd('paused')}                          Muestra senders pausados
   ${cmd('chat')} ${arg('<número>')}                Simula una conversación completa
   ${cmd('knowledge search')} ${arg('<query>')}    Busca en la base de conocimiento
   ${cmd('knowledge rebuild')}              Reconstruye el índice vectorial
   ${cmd('clients')}                         Lista de clientes registrados
+  ${cmd('clients show')} ${arg('<teléfono>')}      Detalle de cliente
+  ${cmd('clients add')} ${arg('<teléfono> <nombre>')} Crea un cliente
+  ${cmd('campaigns')}                       Lista campañas
+  ${cmd('campaigns show')} ${arg('<id>')}          Detalle de campaña
+  ${cmd('campaigns create')} ${arg('<nombre> <mensaje>')} Crea una campaña
+  ${cmd('campaigns run')} ${arg('<id>')}           Ejecuta una campaña
+  ${cmd('campaigns runs')} ${arg('[id]')}          Lista ejecuciones
+  ${cmd('optouts')}                         Lista opt-outs
+  ${cmd('optouts add')} ${arg('<teléfono> [motivo]')} Registra una baja
+  ${cmd('optouts remove')} ${arg('<teléfono>')}    Elimina una baja
+  ${cmd('skills')}                          Lista skills disponibles
+  ${cmd('skills show')} ${arg('<id>')}             Detalle de skill
+  ${cmd('skills run')} ${arg('<id> [input]')}      Ejecuta un skill
   ${cmd('config')}                          Configuración completa del bot
   ${cmd('trello')}                          Tableros y columnas de Trello
   ${cmd('openrouter models')} ${arg('[embeddings|all]')} Modelos disponibles en OpenRouter

@@ -8,6 +8,7 @@ import { ConfigLoaderService } from '../../config/config-loader.service';
 import { BotConfigService } from '../../config/bot-config.service';
 import { SessionService } from '../../session/session.service';
 import { TrelloService } from '../../trello/trello.service';
+import { OptOutService } from '../../opt-out/opt-out.service';
 
 @Injectable()
 export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
@@ -18,6 +19,10 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
 
   /** Recipients the bot is currently sending to — message_create events for these are ignored */
   private readonly botSendingTo = new Set<string>();
+  private readonly botSentMessageIds = new Set<string>();
+  private readonly botSentMessageSignatures = new Set<string>();
+  private readonly botOriginTtlMs = 10 * 60 * 1000;
+  private readonly botSendingWindowMs = 30 * 1000;
 
   /** Per-sender processing lock to avoid race conditions when multiple events arrive simultaneously */
   private readonly processingLocks = new Map<string, Promise<void>>();
@@ -29,6 +34,7 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
     private readonly botConfig: BotConfigService,
     private readonly sessionService: SessionService,
     private readonly trelloService: TrelloService,
+    private readonly optOutService: OptOutService,
   ) {
     this.client = new Client({
       authStrategy: new LocalAuth({ dataPath: './.wwebjs_auth' }),
@@ -80,7 +86,7 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
       if (!message.fromMe) return;
       const botSendingSnapshot = [...this.botSendingTo];
       this.logger.debug(`message_create → to=${message.to} | botSendingTo=[${botSendingSnapshot.join(',')}]`);
-      if (this.botSendingTo.has(message.to)) {
+      if (this.isBotOriginatedOutgoing(message)) {
         this.logger.debug(`message_create ignored (bot-originated) for ${message.to}`);
         return;
       }
@@ -91,18 +97,15 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
   }
 
   async sendMessage(message: OutgoingMessage): Promise<void> {
-    this.botSendingTo.add(message.recipientId);
+    this.markBotSending(message.recipientId, message.text);
     try {
       await this.simulateTyping(message.recipientId, message.text);
-      await this.client.sendMessage(message.recipientId, message.text);
+      const sent = await this.client.sendMessage(message.recipientId, message.text);
+      this.markBotSentMessage(message.recipientId, message.text, sent);
       this.logger.debug(`Sent to ${message.recipientId}`);
     } catch (error) {
       this.logger.error(`Failed to send to ${message.recipientId}: ${(error as Error).message}`);
       throw error;
-    } finally {
-      setTimeout(() => {
-        this.botSendingTo.delete(message.recipientId);
-      }, 3000);
     }
   }
 
@@ -113,9 +116,10 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
    */
   async sendBroadcast(recipientId: string, text: string): Promise<void> {
     this.logger.debug(`sendBroadcast → adding ${recipientId} to botSendingTo`);
-    this.botSendingTo.add(recipientId);
+    this.markBotSending(recipientId, text);
     try {
-      await this.client.sendMessage(recipientId, text);
+      const sent = await this.client.sendMessage(recipientId, text);
+      this.markBotSentMessage(recipientId, text, sent);
       this.logger.debug(`Broadcast sent to ${recipientId}`);
     } catch (error) {
       this.logger.error(`Broadcast failed to ${recipientId}: ${(error as Error).message}`);
@@ -131,6 +135,47 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
   }
 
   // ─── Outgoing message handler (dev manual takeover) ──────────
+
+  private markBotSending(recipientId: string, text: string): void {
+    this.botSendingTo.add(recipientId);
+    this.rememberBotSignature(recipientId, text);
+    setTimeout(() => {
+      this.botSendingTo.delete(recipientId);
+      this.logger.debug(`botSendingTo window expired for ${recipientId}`);
+    }, this.botSendingWindowMs);
+  }
+
+  private markBotSentMessage(recipientId: string, text: string, sent?: Message): void {
+    this.rememberBotSignature(recipientId, text);
+    const id = sent?.id?._serialized;
+    if (!id) return;
+
+    this.botSentMessageIds.add(id);
+    setTimeout(() => {
+      this.botSentMessageIds.delete(id);
+    }, this.botOriginTtlMs);
+  }
+
+  private rememberBotSignature(recipientId: string, text: string): void {
+    const signature = this.outgoingSignature(recipientId, text);
+    this.botSentMessageSignatures.add(signature);
+    setTimeout(() => {
+      this.botSentMessageSignatures.delete(signature);
+    }, this.botOriginTtlMs);
+  }
+
+  private isBotOriginatedOutgoing(message: Message): boolean {
+    if (this.botSendingTo.has(message.to)) return true;
+
+    const id = message.id?._serialized;
+    if (id && this.botSentMessageIds.has(id)) return true;
+
+    return this.botSentMessageSignatures.has(this.outgoingSignature(message.to, message.body ?? ''));
+  }
+
+  private outgoingSignature(recipientId: string, text: string): string {
+    return `${recipientId}::${text.trim()}`;
+  }
 
   private async handleOutgoingMessage(message: Message): Promise<void> {
     const to = message.to;
@@ -385,6 +430,16 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
       return;
     }
 
+    if (this.optOutService.matches(message.body)) {
+      const phone = message.from.replace('@c.us', '').replace('@lid', '');
+      this.optOutService.add(phone, message.body, 'whatsapp');
+      await this.client.sendMessage(
+        message.from,
+        'Listo, no vamos a enviarte más mensajes de campaña. Si necesitás soporte, escribí *menú*.',
+      );
+      return;
+    }
+
     // Ignore messages sent before the client was ready (received while offline)
     const messageTimestampMs = message.timestamp * 1000;
     if (this.readyAt !== null && messageTimestampMs < this.readyAt) {
@@ -393,7 +448,9 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
     }
 
     // Bot is paused for this sender — dev has taken over
-    if (this.botControlService.isPaused(message.from)) {
+    if (this.botControlService.isPaused(message.from) && this.isUserResumeCommand(message.body)) {
+      this.botControlService.resume(message.from);
+    } else if (this.botControlService.isPaused(message.from)) {
       this.logger.debug(`Bot paused for ${message.from} — skipping`);
       return;
     }
@@ -444,6 +501,15 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
   }
 
   // ─── Log groups on ready ──────────────────────────────────────
+
+  private isUserResumeCommand(text: string | undefined): boolean {
+    const normalized = (text ?? '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+    return ['menu', 'volver', 'inicio', 'reactivar'].includes(normalized);
+  }
 
   private async logAvailableGroups(): Promise<void> {
     try {

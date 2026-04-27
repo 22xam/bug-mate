@@ -1,32 +1,30 @@
 # BugMate — WhatsApp Bot Framework con IA
 
-Bot de WhatsApp empresarial construido con NestJS + WhatsApp Web.js que soporta múltiples proveedores de IA, flujos conversacionales configurables por JSON, sistema de conocimiento vectorial (RAG) y broadcast a clientes.
+Bot de WhatsApp empresarial construido con NestJS + WhatsApp Web.js que soporta múltiples proveedores de IA, flujos conversacionales configurables por JSON, sistema de conocimiento vectorial (RAG), motor de campañas con base de datos y CLI de administración.
 
-> Basado en [ignaciobecher/bug-mate](https://github.com/ignaciobecher/bug-mate) — extendido con OpenRouter, menú de inicio interactivo, broadcast de campaña, reintentos de IA y correcciones para Windows.
+> Basado en [ignaciobecher/bug-mate](https://github.com/ignaciobecher/bug-mate) — extendido con OpenRouter, persistencia SQLite, motor de campañas profesional, opt-outs y CLI extendida.
 
 ---
 
-## Características
+## Características Principales
 
-- **Múltiples proveedores de IA:** Gemini, Ollama (local) y OpenRouter — switcheable en caliente desde el menú de inicio
-- **Menú de inicio interactivo:** Elegí proveedor y modelo antes de que NestJS arranque; lista modelos disponibles en tiempo real desde Ollama y OpenRouter
-- **Flujos conversacionales JSON:** Sin tocar código — menús, bifurcaciones, escalación a humano
-- **Modo IA puro:** Omite el menú y responde directamente con el LLM elegido
-- **RAG (Retrieval-Augmented Generation):** Búsqueda vectorial SQLite + keyword match sobre documentos propios
-- **Broadcast a clientes:** Envía mensajes personalizados con IA a todos los clientes registrados
-- **Reintentos automáticos:** 3 intentos con back-off progresivo si la IA falla; mensaje de disculpa si los 3 fallan
-- **Pausa / Reanudación:** Pausá el bot por contacto para retomar la conversación manualmente
-- **REST API completa:** Status, sesiones, knowledge, test de mensajes, control de pausa
-- **Control por grupo WhatsApp:** Comandos `!status`, `!paused`, `!sessions` desde un grupo designado
-- **Soporte Windows:** Correcciones de TLS para Node.js nativo (`NODE_TLS_REJECT_UNAUTHORIZED=0` + `https.request`)
+- **Múltiples proveedores de IA:** Gemini, Ollama (local) y OpenRouter — switcheable en caliente.
+- **Persistencia Robusta (SQLite):** Base de datos para clientes, sistema de bajas (opt-out), logs de campañas y conocimiento vectorial.
+- **Motor de Campañas:** Creación, ejecución, previsualización y seguimiento de envíos masivos personalizados con IA.
+- **Sistema de Bajas (Opt-out):** Gestión automática de números que no desean recibir mensajes (vía API o comando WhatsApp).
+- **CLI de Administración:** Herramienta de consola para gestionar clientes, campañas, bajas y ejecutar "skills" de IA.
+- **RAG (Retrieval-Augmented Generation):** Búsqueda vectorial sobre documentos propios para respuestas precisas.
+- **Comandos Globales Inteligentes:** Comandos como `menu`, `cancelar`, `salir` y reanudación automática si el usuario escribe tras una pausa.
+- **Soporte Windows:** Configuraciones nativas para evitar errores TLS y bloqueos de proceso en entornos Windows.
 
 ---
 
 ## Requisitos
 
 - Node.js 20+
-- Google Chrome / Chromium (para Puppeteer/WhatsApp Web.js)
-- Una API key de Gemini, OpenRouter, o Ollama corriendo localmente
+- Google Chrome / Chromium (para Puppeteer)
+- Una API key de Gemini o OpenRouter
+- SQLite3 instalado en el sistema
 
 ---
 
@@ -38,219 +36,104 @@ cd bug-mate
 npm install
 ```
 
-Copiá los archivos de ejemplo:
+Configuración inicial:
 
 ```bash
 cp .env.example .env
 cp config/bot.config.example.json config/bot.config.json
-cp config/clients.example.json config/clients.json
+cp config/campaigns.example.json config/campaigns.json
 ```
-
-Editá `.env` con tus credenciales (ver sección Variables de entorno).
 
 ---
 
 ## Uso
 
 ```bash
-npm run build        # Compilar TypeScript
-node dist/main.js    # Iniciar bot
+npm run build        # Compilar
+npm run start:dev    # Iniciar en modo desarrollo
 ```
 
-Al iniciar, aparece un **menú interactivo** para elegir proveedor de IA y modelo:
-
-```
-╔══════════════════════════════════════════╗
-║   🔴  Evangelina — Lista 26 Roja         ║
-║       Configuración de Proveedor IA      ║
-╚══════════════════════════════════════════╝
-
-  1. Gemini (Google)
-  2. Ollama (local)
-  3. OpenRouter
-  4. Continuar sin cambios ← actual
-```
-
-Luego NestJS arranca, aparece el QR y escaneás con WhatsApp.
+Al iniciar, aparece un **menú interactivo** para elegir el modelo de IA. Luego, escaneá el QR con WhatsApp.
 
 ---
 
-## Proveedores de IA
+## Motor de Campañas
 
-### Gemini (Google)
-Configurá `GEMINI_API_KEY` en `.env`. Modelos disponibles: `gemini-2.5-flash`, `gemini-2.5-pro`, `gemini-2.0-flash`, `gemini-1.5-flash`, `gemini-1.5-pro`.
+El bot incluye un potente sistema de campañas definido en `config/campaigns.json`.
 
-### OpenRouter
-Configurá `OPENROUTER_API_KEY` en `.env`. Al elegir OpenRouter en el menú de inicio, el sistema consulta los modelos disponibles en tiempo real, mostrando primero los gratuitos.
-
-> **Nota:** OpenRouter se usa para chat; los embeddings (RAG) siempre usan Gemini porque la mayoría de modelos free de OpenRouter no soportan embeddings.
-
-### Ollama (local)
-Asegurate de tener Ollama corriendo en `http://localhost:11434` (o configurá `OLLAMA_URL`). El menú lista los modelos instalados automáticamente.
+### Flujo de una campaña:
+1. **Definición:** Se configura el prompt y la lógica en el JSON.
+2. **Importación:** Los clientes se registran en la DB (vía API o CLI).
+3. **Ejecución:** Se lanza la campaña (dry-run para probar, o real).
+4. **Seguimiento:** Cada envío queda registrado en la tabla `campaign_runs`.
 
 ---
 
-## Variables de entorno
+## CLI de Administración
 
-| Variable | Descripción |
+La herramienta `npm run cli` permite gestionar el bot sin usar la API directamente. 
+
+> **Nota:** El servidor (`npm run start:dev`) debe estar corriendo en otra terminal.
+
+### Comandos disponibles:
+
+| Comando | Descripción |
 |---|---|
-| `AI_PROVIDER` | `gemini`, `ollama` o `openrouter` |
-| `GEMINI_API_KEY` | API key de Google Gemini |
-| `OPENROUTER_API_KEY` | API key de OpenRouter |
-| `OPENROUTER_APP_NAME` | Nombre de la app (aparece en OpenRouter dashboard) |
-| `OLLAMA_URL` | URL de Ollama (default: `http://localhost:11434`) |
-| `DEVELOPER_PHONE` | Teléfono del admin (solo dígitos, ej: `5493874043810`) |
-| `PORT` | Puerto HTTP (default: `3000`) |
-| `CONTROL_GROUP_ID` | ID del grupo WhatsApp para comandos de control |
-| `NODE_TLS_REJECT_UNAUTHORIZED` | Poné `0` en Windows para evitar errores TLS |
+| `status` | Estado del bot y proveedor actual |
+| `clients` | Listar todos los clientes en la DB |
+| `clients add <tel> <nombre>` | Registrar un nuevo cliente |
+| `campaigns` | Listar campañas configuradas |
+| `campaigns run <id>` | Ejecutar una campaña (usa `--dry-run` para probar) |
+| `campaigns runs <id>` | Ver historial de envíos de una campaña |
+| `optouts` | Ver lista de números en lista negra |
+| `optouts add <tel>` | Agregar número a lista negra manualmente |
+| `skills` | Listar y ejecutar habilidades de IA especializadas |
 
 ---
 
-## Configuración del bot (`config/bot.config.json`)
+## Estructura de Datos (SQLite)
 
-Todo el comportamiento del bot se define en JSON — sin tocar código TypeScript:
-
-```jsonc
-{
-  "mode": "ai",                    // "ai" o "flow"
-  "identity": {
-    "name": "Nombre del bot",
-    "company": "Tu empresa",
-    "developerName": "Tu nombre",
-    "tone": "descripción del tono"
-  },
-  "greeting": { ... },
-  "menu": { ... },                 // Menú principal (modo flow)
-  "conditionalFlows": { ... },     // Flujos con bifurcaciones
-  "ai": {
-    "model": "gemini-2.0-flash",
-    "embeddingModel": "text-embedding-004",
-    "systemPrompt": "...",
-    "useKnowledge": true,
-    "ragTopK": 3,
-    "ragMinScore": 0.55,
-    "maxHistoryMessages": 10,
-    "fallbackToEscalation": true
-  },
-  "escalation": {
-    "keywords": ["hablar con alguien", ...],
-    "clientMessage": "...",
-    "developerNotification": "..."
-  },
-  "humanDelay": {
-    "enabled": true,
-    "msPerCharacter": 45
-  }
-}
-```
+El sistema utiliza `data/bugmate.sqlite` con las siguientes tablas:
+- `clients`: Datos de contacto y preferencias.
+- `opt_outs`: Números que solicitaron la baja.
+- `campaign_runs`: Log histórico de cada mensaje enviado por campaña.
+- `knowledge_vectors`: (En `knowledge.sqlite`) Vectores para búsqueda semántica.
 
 ---
 
-## Base de conocimiento (RAG)
+## API REST (Endpoints Clave)
 
-Colocá archivos `.md` o `.txt` en `config/knowledge-docs/` y ejecutá:
-
-```bash
-POST http://localhost:3000/api/knowledge/rebuild
-```
-
-El sistema indexa los documentos como vectores en SQLite (`data/knowledge.sqlite`). En cada consulta IA hace:
-1. Búsqueda por keywords en `knowledge.json`
-2. Búsqueda vectorial por similitud coseno
-
----
-
-## API REST
-
-| Endpoint | Método | Descripción |
+| Endpoint | Método | Acción |
 |---|---|---|
-| `/api/status` | GET | Estado del bot, proveedor, sesiones activas |
-| `/api/clients` | GET | Lista de clientes registrados |
-| `/api/sessions` | GET | Sesiones conversacionales activas |
-| `/api/sessions/:id` | DELETE | Reiniciar sesión de un cliente |
-| `/api/pause` | POST | Pausar bot para un número `{ number }` |
-| `/api/resume` | POST | Reanudar bot para un número `{ number }` |
-| `/api/resume/all` | POST | Reanudar todos los pausados |
-| `/api/paused` | GET | Lista de números pausados |
-| `/api/broadcast/good-morning` | POST | Enviar mensaje de campaña a clientes `{ phones? }` |
-| `/api/test/message` | POST | Simular mensaje sin WhatsApp real `{ senderId, text }` |
-| `/api/knowledge/search` | GET | Buscar en knowledge `?q=texto` |
-| `/api/knowledge/rebuild` | POST | Re-indexar documentos |
-| `/api/openrouter/models` | GET | Listar modelos de OpenRouter |
-| `/api/config` | GET | Ver configuración activa |
+| `/api/clients` | GET/POST | Gestión de base de datos de clientes |
+| `/api/campaigns` | GET/POST | Configuración de campañas |
+| `/api/campaign-runs` | POST | Disparar una campaña |
+| `/api/opt-outs` | GET/POST | Gestionar lista negra |
+| `/api/pause` | POST | Pausar atención de IA para un número |
+| `/api/resume` | POST | Reanudar atención (borra la pausa) |
 
 ---
 
-## Broadcast
+## Comandos desde WhatsApp
 
-El endpoint `POST /api/broadcast/good-morning` genera un mensaje personalizado con IA para cada cliente usando el contexto del bot (identidad, propuestas, etc.) y lo envía por WhatsApp con 4 segundos de pausa entre envíos para evitar spam.
+### Para Usuarios:
+- `menu`: Vuelve al menú principal.
+- `cancelar` / `salir`: Cancela el flujo actual.
+- `baja` (en respuesta a campaña): Se auto-registra en la lista de opt-out.
 
-```bash
-# Enviar a todos los clientes registrados
-curl -X POST http://localhost:3000/api/broadcast/good-morning
-
-# Enviar a números específicos (solo si están en clients.json)
-curl -X POST http://localhost:3000/api/broadcast/good-morning \
-  -H "Content-Type: application/json" \
-  -d '{ "phones": ["5493874497992"] }'
-```
-
-Respuesta:
-```json
-{
-  "ok": true,
-  "sent": 2,
-  "failed": 0,
-  "skipped": 0,
-  "results": [...]
-}
-```
-
----
-
-## Clientes (`config/clients.json`)
-
-```json
-[
-  {
-    "name": "Juan",
-    "phone": "5491134567890",
-    "company": "Empresa SRL",
-    "knowledgeDocs": ["empresa.md"]
-  }
-]
-```
-
-> `clients.json` está en `.gitignore` — nunca se sube al repositorio.
-
----
-
-## Solución de problemas
-
-**Bot colgado / no muestra QR (Windows)**
-```powershell
-Get-Process chrome,node | Stop-Process -Force
-Remove-Item .wwebjs_auth/session/SingletonLock -Force
-```
-
-**Error TLS en Windows con APIs externas**
-Verificá que `.env` tenga `NODE_TLS_REJECT_UNAUTHORIZED=0`.
-
-**OpenRouter no trae modelos**
-El menú de inicio usa `https.request` nativo (no `fetch`) para respetar `rejectUnauthorized: false` en Windows. Si falla, verificá tu API key y conexión a internet.
-
-**La IA no responde / falla**
-El bot reintenta 3 veces con back-off progresivo (2s, 4s). Si los 3 intentos fallan, envía un mensaje genérico de disculpa al usuario.
+### Para el Administrador (en el Grupo de Control):
+- `!status`: Resumen del sistema.
+- `!paused`: Lista de chats pausados manualmente.
+- `!sessions`: Sesiones activas.
 
 ---
 
 ## Desarrollo
 
 ```bash
-npm run start:dev    # Hot reload con ts-node
-npm run build        # Compilar a dist/
-npm run lint         # ESLint
-npm test             # Tests unitarios
+npm run start:dev    # Hot reload
+npm run lint         # Control de calidad
+npm test             # Ejecutar tests
 ```
 
 ---

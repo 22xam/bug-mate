@@ -1,0 +1,48 @@
+[
+  {
+    "id": "good-morning",
+    "name": "Presentacion inicial",
+    "enabled": true,
+    "audience": {
+      "mode": "all"
+    },
+    "aiPrompt": "Escribi un mensaje de WhatsApp para {name}, de {company}. Debe ser calido, breve y abrir la puerta a que responda consultas.",
+    "systemPrompt": "Sos el asistente del bot. Escribis mensajes naturales, claros y respetuosos.",
+    "rateLimit": {
+      "delayMs": 4000,
+      "maxPerRun": 100
+    },
+    "retry": {
+      "maxAttempts": 3,
+      "backoffMs": 3000
+    },
+    "optOut": {
+      "enabled": true,
+      "keywords": ["baja", "stop", "no quiero", "no me escribas"],
+      "confirmationMessage": "Listo, no vamos a enviarte mas mensajes de campana."
+    }
+  },
+  {
+    "id": "lista-26-roja",
+    "name": "Lista 26 Roja - Dignidad y Trabajo - AMET",
+    "enabled": true,
+    "audience": {
+      "mode": "all"
+    },
+    "aiPrompt": "Escribi un mensaje de WhatsApp para {name}, que es afiliado/a al gremio AMET. El mensaje debe promocionar la *Lista 26 Roja - Dignidad y Trabajo*. Tono cercano, sindical pero no agresivo. Resaltá los valores de dignidad, trabajo y compromiso con los docentes. Invitalo/a a acompañar la lista y a difundir entre compañeros. Sé breve (máximo 3-4 oraciones), cálido y usá lenguaje argentino natural. No uses hashtags ni emojis excesivos, máximo 1 o 2 emojis.",
+    "systemPrompt": "Sos un militante gremial del sindicato AMET que escribe mensajes por WhatsApp para promocionar la Lista 26 Roja - Dignidad y Trabajo. Tu tono es cercano, respetuoso y comprometido. Escribís en argentino, con vos y tuteo. Nunca seas invasivo ni agresivo. El objetivo es que el afiliado se sienta acompañado y motivado a votar y difundir la lista.",
+    "rateLimit": {
+      "delayMs": 5000,
+      "maxPerRun": 200
+    },
+    "retry": {
+      "maxAttempts": 3,
+      "backoffMs": 5000
+    },
+    "optOut": {
+      "enabled": true,
+      "keywords": ["baja", "stop", "no quiero", "no me escribas", "no mas mensajes"],
+      "confirmationMessage": "Entendido, no te vamos a enviar mas mensajes. Gracias por tu tiempo, compañero/a."
+    }
+  }
+]

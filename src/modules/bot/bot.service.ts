@@ -27,6 +27,9 @@ export class BotService {
     this.logger.log(`[${adapter.channelName}] Message from ${incoming.senderId}`);
 
     const { session, isNew } = this.sessionService.getOrCreate(incoming.senderId);
+    if (await this.handleGlobalCommand(incoming, session, adapter)) {
+      return;
+    }
     this.sessionService.addToHistory(incoming.senderId, 'user', incoming.text || '[media]');
 
     const mode = this.configLoader.botConfig.mode ?? 'flow';
@@ -69,6 +72,49 @@ export class BotService {
   }
 
   // ─── Greeting ────────────────────────────────────────────────
+
+  private async handleGlobalCommand(
+    incoming: IncomingMessage,
+    session: ConversationSession,
+    adapter: MessageAdapter,
+  ): Promise<boolean> {
+    const input = this.normalizeCommand(incoming.text);
+    if (!input) return false;
+
+    const commands = this.configLoader.botConfig.commands?.global;
+    const menuAliases = commands?.menuAliases ?? ['menu', 'menú', 'volver', 'inicio'];
+    const cancelAliases = commands?.cancelAliases ?? ['cancelar', 'salir', 'terminar'];
+    const allowMenuWhenEscalated = commands?.allowMenuWhenEscalated ?? false;
+
+    if (menuAliases.map((a) => this.normalizeCommand(a)).includes(input)) {
+      if (session.state === 'ESCALATED' && !allowMenuWhenEscalated) {
+        return false;
+      }
+      this.sessionService.reset(session.senderId);
+      const { session: resetSession } = this.sessionService.getOrCreate(session.senderId);
+      await this.sendGreetingAndMenu(resetSession, adapter);
+      return true;
+    }
+
+    if (cancelAliases.map((a) => this.normalizeCommand(a)).includes(input)) {
+      this.sessionService.reset(session.senderId);
+      const message =
+        commands?.cancelMessage ??
+        'Listo, cancelé la operación actual. Escribí *menú* cuando quieras volver a empezar.';
+      await this.send(adapter, session.senderId, message);
+      return true;
+    }
+
+    return false;
+  }
+
+  private normalizeCommand(text: string | undefined): string {
+    return (text ?? '')
+      .trim()
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '');
+  }
 
   private async sendGreetingAndMenu(
     session: ConversationSession,

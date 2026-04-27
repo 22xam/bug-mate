@@ -75,7 +75,7 @@ export class OpenRouterProvider implements AIProvider, EmbeddingProvider {
 
   async generate(request: AIGenerateRequest): Promise<AIGenerateResponse> {
     const { ai, identity } = this.configLoader.botConfig;
-    const model = ai.model;
+    const models = this.modelsWithFallbacks(ai.model);
 
     const systemPrompt =
       request.systemPrompt ??
@@ -98,33 +98,45 @@ export class OpenRouterProvider implements AIProvider, EmbeddingProvider {
       },
     ];
 
-    this.logger.debug(`Sending prompt to OpenRouter model "${model}"`);
+    let lastError = new Error('Unknown OpenRouter error');
 
-    try {
-      const { data } = await firstValueFrom(
-        this.httpService.post<OpenRouterChatResponse>(
-          `${this.botConfig.openRouterBaseUrl}/chat/completions`,
-          {
-            model,
-            messages,
+    for (const model of models) {
+      this.logger.debug(`Sending prompt to OpenRouter model "${model}"`);
+
+      try {
+        const { data } = await firstValueFrom(
+          this.httpService.post<OpenRouterChatResponse>(
+            `${this.botConfig.openRouterBaseUrl}/chat/completions`,
+            {
+              model,
+              messages,
+            },
+            { headers: this.headers() },
+          ),
+        );
+
+        return {
+          text: this.extractText(data),
+          metadata: {
+            id: data.id,
+            model: data.model ?? model,
+            requestedModel: model,
+            usage: data.usage,
           },
-          { headers: this.headers() },
-        ),
-      );
+        };
+      } catch (error: any) {
+        const msg = error.response?.data?.error?.message || error.response?.data?.message || error.message || 'Unknown error';
+        lastError = new Error(msg);
 
-      return {
-        text: this.extractText(data),
-        metadata: {
-          id: data.id,
-          model: data.model ?? model,
-          usage: data.usage,
-        },
-      };
-    } catch (error: any) {
-      const msg = error.response?.data?.error?.message || error.response?.data?.message || error.message || 'Unknown error';
-      this.logger.error(`OpenRouter generation failed: ${msg}`);
-      throw new Error(`AI provider error: ${msg}`);
+        if (model === models[models.length - 1]) {
+          this.logger.error(`OpenRouter generation failed for "${model}": ${msg}`);
+        } else {
+          this.logger.warn(`OpenRouter model "${model}" failed; trying fallback: ${msg}`);
+        }
+      }
     }
+
+    throw new Error(`AI provider error: ${lastError.message}`);
   }
 
   async embed(text: string): Promise<number[]> {
@@ -213,6 +225,23 @@ export class OpenRouterProvider implements AIProvider, EmbeddingProvider {
       return content.map((part) => part.text ?? '').join('');
     }
     return '';
+  }
+
+  private modelsWithFallbacks(primaryModel: string): string[] {
+    const fallbackModels = this.openRouterFallbackModels();
+    return Array.from(new Set([primaryModel, ...fallbackModels].filter(Boolean)));
+  }
+
+  private openRouterFallbackModels(): string[] {
+    const aiConfig = this.configLoader.botConfig.ai as { fallbackModels?: string[] | string };
+    const fromConfig = aiConfig.fallbackModels;
+    const rawModels = Array.isArray(fromConfig)
+      ? fromConfig
+      : typeof fromConfig === 'string'
+        ? fromConfig.split(',')
+        : (process.env.OPENROUTER_FALLBACK_MODELS ?? '').split(',');
+
+    return rawModels.map((model) => model.trim()).filter(Boolean);
   }
 
   private headers(includeAuth = true): Record<string, string> {

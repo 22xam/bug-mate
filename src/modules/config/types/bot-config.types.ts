@@ -32,6 +32,13 @@ export interface MenuConfig {
   options: MenuOption[];
 }
 
+export interface GlobalCommandsConfig {
+  menuAliases: string[];
+  cancelAliases: string[];
+  cancelMessage: string;
+  allowMenuWhenEscalated: boolean;
+}
+
 // ─── Flow step (guided mode) ─────────────────────────────────────────────────
 
 export interface FlowStep {
@@ -82,6 +89,7 @@ export type FlowDefinition = GuidedFlow | AiFlow;
 
 export interface AiConfig {
   model: string;
+  fallbackModels?: string[];
   embeddingModel: string;
   systemPrompt: string;
   ragMinScore: number;
@@ -131,6 +139,9 @@ export interface BotConfig {
   identity: BotIdentity;
   greeting: GreetingConfig;
   menu: MenuConfig;
+  commands?: {
+    global?: GlobalCommandsConfig;
+  };
   /** Map of flowId → legacy flow definition (guided or ai). */
   flows: Record<string, FlowDefinition>;
   /** Map of flowId → conditional (graph-based) flow definition. */

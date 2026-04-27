@@ -98,29 +98,29 @@ export class BroadcastService {
   }
 
   private async generateCampaignMessage(recipientName: string): Promise<string> {
-    const prompt = `Escribí un mensaje de WhatsApp para enviarle a ${recipientName}, un docente de escuela técnica de Salta, Argentina.
+    const prompt = `Escribí un mensaje de WhatsApp de campaña para ${recipientName}, afiliado/a de AMET Regional XIII Salta (docente de escuela técnica).
 
-El objetivo del mensaje es:
-1. Saludarlo/a de manera cálida y personal, usando su nombre
-2. Presentarte brevemente como Evangelina, asistente de Lista 26 Roja — Dignidad y Trabajo de AMET Regional XIII Salta
-3. Contarle en 2-3 oraciones el corazón de la propuesta: defensa del Decreto 4659/12, Fondo Provincial de Educación Técnica, y bienestar del afiliado
-4. Invitarlo/a a responder con cualquier consulta o a conocer más — dejá la puerta abierta a la conversación
-5. Incluir el link al sitio: https://plataformalista26.vercel.app/ y el Instagram @lista26roja
+CONTEXTO: Las elecciones de AMET son el 5 de mayo de 2025. Lista 26 Roja — Dignidad y Trabajo es una lista nueva, no la conducción actual. Venimos a cambiar lo que no funciona.
 
-El mensaje debe:
-- Ser natural, como lo escribiría una compañera — NO un discurso político
-- Usar español rioplatense/salteño, tuteo
-- Tener entre 5 y 8 líneas, sin ser pesado
-- Máximo 2 emojis, bien ubicados
-- NO sonar como spam ni publicidad masiva
-- Terminar con firma: *Evangelina* — Lista 26 Roja 🔴
+ESTRUCTURA EXACTA (4 líneas máximo + firma):
+1. Gancho con el nombre y una verdad que duele ("sabés mejor que nadie lo que es llegar al taller sin insumos")
+2. Identidad compartida + diferenciación suave ("por eso nos juntamos, porque esto tiene que cambiar")
+3. Urgencia + CTA ("el 5 de mayo es nuestra oportunidad — ¿te cuento qué proponemos?")
+4. Firma: *Evangelina* — Lista 26 Roja 🔴
 
-Respondé solo con el mensaje listo para enviar, sin explicaciones ni comillas.`;
+REGLAS:
+- Máximo 4 líneas en total, incluyendo firma
+- 1 solo emoji (el de la firma)
+- Español salteño, tuteo, tono de compañera — nunca discurso político
+- La pregunta final debe invitar a responder, no a hacer clic en un link
+- NO menciones el sitio web en este primer mensaje — primero la conversación
+
+Respondé solo con el mensaje listo, sin comillas ni explicaciones.`;
 
     const response = await this.aiProvider.generate({
       prompt,
       systemPrompt:
-        'Sos Evangelina, asistente de Lista 26 Roja — Dignidad y Trabajo, AMET Regional XIII Salta. Escribís mensajes cálidos, genuinos y comprometidos con la causa docente.',
+        'Sos Evangelina, compañera docente y voz de Lista 26 Roja — Dignidad y Trabajo, AMET Regional XIII Salta. Escribís mensajes de campaña breves, honestos y que generan conversación. El objetivo es que el afiliado responda, no que lea un folleto.',
     });
 
     return response.text.trim();

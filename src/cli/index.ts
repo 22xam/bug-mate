@@ -12,6 +12,11 @@
  *   npm run cli -- resume 5491112345678
  *   npm run cli -- flows
  *   npm run cli -- clients
+ *   npm run cli -- clients add 5491112345678 "Juan Perez"
+ *   npm run cli -- campaigns
+ *   npm run cli -- campaigns run bienvenida
+ *   npm run cli -- optouts add 5491112345678 "pidio baja"
+ *   npm run cli -- skills
  *   npm run cli -- config
  *   npm run cli -- trello
  *   npm run cli -- openrouter models
@@ -114,7 +119,60 @@ async function runDirect(client: ApiClient, args: string[]): Promise<void> {
       break;
 
     case 'clients':
-      await cmds.cmdClients(client);
+      if (!rest[0] || rest[0] === 'list') {
+        await cmds.cmdClients(client);
+      } else if (rest[0] === 'show') {
+        await cmds.cmdClientShow(client, rest[1]);
+      } else if (rest[0] === 'add') {
+        await cmds.cmdClientAdd(client, rest.slice(1));
+      } else {
+        console.log(info('Uso: clients [list] | clients show <teléfono> | clients add <teléfono> <nombre>'));
+        process.exit(1);
+      }
+      break;
+
+    case 'campaigns':
+      if (!rest[0] || rest[0] === 'list') {
+        await cmds.cmdCampaigns(client);
+      } else if (rest[0] === 'show') {
+        await cmds.cmdCampaignShow(client, rest[1]);
+      } else if (rest[0] === 'create') {
+        await cmds.cmdCampaignCreate(client, rest.slice(1));
+      } else if (rest[0] === 'run') {
+        await cmds.cmdCampaignRun(client, rest.slice(1));
+      } else if (rest[0] === 'runs') {
+        await cmds.cmdCampaignRuns(client, rest[1]);
+      } else {
+        console.log(info('Uso: campaigns [list] | campaigns show <id> | campaigns create <nombre> <mensaje> | campaigns run <id> | campaigns runs [id]'));
+        process.exit(1);
+      }
+      break;
+
+    case 'optouts':
+    case 'opt-outs':
+      if (!rest[0] || rest[0] === 'list') {
+        await cmds.cmdOptOuts(client);
+      } else if (rest[0] === 'add') {
+        await cmds.cmdOptOutAdd(client, rest.slice(1));
+      } else if (rest[0] === 'remove' || rest[0] === 'delete') {
+        await cmds.cmdOptOutRemove(client, rest[1]);
+      } else {
+        console.log(info('Uso: optouts [list] | optouts add <teléfono> [motivo] | optouts remove <teléfono>'));
+        process.exit(1);
+      }
+      break;
+
+    case 'skills':
+      if (!rest[0] || rest[0] === 'list') {
+        await cmds.cmdSkills(client);
+      } else if (rest[0] === 'show') {
+        await cmds.cmdSkillShow(client, rest[1]);
+      } else if (rest[0] === 'run') {
+        await cmds.cmdSkillRun(client, rest.slice(1));
+      } else {
+        console.log(info('Uso: skills [list] | skills show <id> | skills run <id> [input]'));
+        process.exit(1);
+      }
       break;
 
     case 'config':
@@ -123,6 +181,35 @@ async function runDirect(client: ApiClient, args: string[]): Promise<void> {
 
     case 'trello':
       await cmds.cmdTrello(client);
+      break;
+
+    case 'campaign':
+    case 'campaigns':
+      if (cmd === 'campaigns' || rest.length === 0) {
+        await cmds.cmdCampaigns(client);
+      } else if (rest[0] === 'preview') {
+        await cmds.cmdCampaignPreview(client, rest[1], Number(rest[2] ?? '5'));
+      } else if (rest[0] === 'run') {
+        await cmds.cmdCampaignRun(client, rest.slice(1));
+      } else if (rest[0] === 'status') {
+        await cmds.cmdCampaignStatus(client, rest[1]);
+      } else {
+        await cmds.cmdCampaignAction(client, rest[0], rest[1]);
+      }
+      break;
+
+    case 'optouts':
+      await cmds.cmdOptOuts(client);
+      break;
+
+    case 'optout':
+      if (rest[0] === 'add') {
+        await cmds.cmdOptOutAdd(client, rest.slice(1));
+      } else if (rest[0] === 'remove') {
+        await cmds.cmdOptOutRemove(client, rest[1]);
+      } else {
+        console.log(info('Uso: optout add <telefono> [motivo] | optout remove <telefono>'));
+      }
       break;
 
     case 'openrouter':
@@ -186,11 +273,31 @@ ${c.bold}Comandos:${c.reset}
   session clear <número>             Limpiar sesión
   flows                              Flujos configurados
   pause <número>                     Pausar bot para número
-  resume <número>                    Reanudar bot para número
+  resume <número|all>                Reanudar bot para número o todos
   paused                             Ver senders pausados
-  clients                            Lista de clientes
+  clients [list]                     Lista de clientes
+  clients show <teléfono>            Detalle de cliente
+  clients add <teléfono> <nombre>    Crear cliente
+  campaigns [list]                   Lista campañas
+  campaigns show <id>                Detalle de campaña
+  campaigns create <nombre> <msg>    Crear campaña
+  campaigns run <id>                 Ejecutar campaña
+  campaigns runs [id]                Ver ejecuciones
+  optouts [list]                     Lista opt-outs
+  optouts add <teléfono> [motivo]    Registrar baja
+  optouts remove <teléfono>          Quitar baja
+  skills [list]                      Lista skills
+  skills show <id>                   Detalle de skill
+  skills run <id> [input]            Ejecutar skill
   config                             Configuración del bot
   trello                             Tableros de Trello
+  campaigns                          Campañas configuradas
+  campaign preview <id> [limit]      Vista previa de campaña
+  campaign run <id> [dry]            Crear corrida de campaña
+  campaign status [runId]            Estado de corridas
+  campaign process-next <runId>      Enviar siguiente job en cola
+  optouts                            Listar bajas
+  optout add/remove <teléfono>       Gestionar bajas
   openrouter models [embeddings|all] Modelos disponibles en OpenRouter
   knowledge search <query>           Buscar en base de conocimiento
   knowledge rebuild                  Reconstruir índice

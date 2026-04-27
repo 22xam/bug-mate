@@ -5,9 +5,10 @@ import { BotModule } from '../bot/bot.module';
 import { AppConfigModule } from '../config/config.module';
 import { SessionModule } from '../session/session.module';
 import { TrelloModule } from '../trello/trello.module';
+import { OptOutModule } from '../opt-out/opt-out.module';
 
 @Module({
-  imports: [BotModule, AppConfigModule, SessionModule, TrelloModule],
+  imports: [BotModule, AppConfigModule, SessionModule, TrelloModule, OptOutModule],
   providers: [
     WhatsAppAdapter,
     {
