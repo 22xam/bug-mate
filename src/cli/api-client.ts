@@ -5,7 +5,7 @@ export class ApiClient {
   readonly baseUrl: string;
 
   constructor(baseUrl?: string) {
-    this.baseUrl = baseUrl ?? process.env['BUGMATE_URL'] ?? DEFAULT_BASE_URL;
+    this.baseUrl = baseUrl ?? process.env['BOT_OSCAR_URL'] ?? process.env['BUGMATE_URL'] ?? DEFAULT_BASE_URL;
   }
 
   private async request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -35,7 +35,7 @@ export class ApiClient {
     return this.request<T>(path, { method: 'DELETE' });
   }
 
-  /** Returns true if the BugMate server is reachable. */
+  /** Returns true if the BOT-Oscar server is reachable. */
   async isConnected(): Promise<boolean> {
     try {
       const res = await fetch(`${this.baseUrl}/api/status`, {

@@ -110,7 +110,7 @@ export function banner(): void {
 
   const title = [
     `  ${bd}${Y}╔══════════════════════════════════╗${R}`,
-    `  ${bd}${Y}║${R}  ${bd}${W}BUG-MATE${R} ${G}CLI${R}  ${D}·${R}  ${D}Panel de Control${R}  ${bd}${Y}║${R}`,
+    `  ${bd}${Y}║${R}  ${bd}${W}BOT-OSCAR${R} ${G}CLI${R} ${D}·${R}  ${D}Panel de Control${R}  ${bd}${Y}║${R}`,
     `  ${bd}${Y}╚══════════════════════════════════╝${R}`,
   ];
 

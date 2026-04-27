@@ -32,7 +32,7 @@ function dim(text: string)    { print(`  ${DIM}${text}${RESET}`); }
 function banner() {
   print('');
   print(`${BOLD}${RED}╔══════════════════════════════════════════╗${RESET}`);
-  print(`${BOLD}${RED}║   🔴  Evangelina — Lista 26 Roja         ║${RESET}`);
+  print(`${BOLD}${RED}║             🤖  BOT-Oscar                ║${RESET}`);
   print(`${BOLD}${RED}║       Configuración de Proveedor IA      ║${RESET}`);
   print(`${BOLD}${RED}╚══════════════════════════════════════════╝${RESET}`);
   print('');
@@ -342,6 +342,6 @@ export async function runStartupSelector(): Promise<void> {
   }
 
   print('');
-  print(`${BOLD}${GREEN}▶ Iniciando Evangelina...${RESET}`);
+  print(`${BOLD}${GREEN}▶ Iniciando BOT-Oscar...${RESET}`);
   print('');
 }

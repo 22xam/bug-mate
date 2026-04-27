@@ -1,8 +1,8 @@
-# BugMate — WhatsApp Bot Framework con IA
+# BOT-Oscar — WhatsApp Bot Framework con IA
 
 Bot de WhatsApp empresarial construido con NestJS + WhatsApp Web.js que soporta múltiples proveedores de IA, flujos conversacionales configurables por JSON, sistema de conocimiento vectorial (RAG), motor de campañas con base de datos y CLI de administración.
 
-> Basado en [ignaciobecher/bug-mate](https://github.com/ignaciobecher/bug-mate) — extendido con OpenRouter, persistencia SQLite, motor de campañas profesional, opt-outs y CLI extendida.
+> **Nota Histórica:** Este proyecto fue tomado como base de [bug-mate](https://github.com/ignaciobecher/bug-mate) y ha sido extendido significativamente con persistencia SQLite, motor de campañas profesional, gestión de opt-outs y una CLI de administración avanzada.
 
 ---
 
@@ -32,7 +32,7 @@ Bot de WhatsApp empresarial construido con NestJS + WhatsApp Web.js que soporta 
 
 ```bash
 git clone <tu-repo>
-cd bug-mate
+cd BOT-Oscar
 npm install
 ```
 
@@ -65,15 +65,13 @@ El bot incluye un potente sistema de campañas definido en `config/campaigns.jso
 1. **Definición:** Se configura el prompt y la lógica en el JSON.
 2. **Importación:** Los clientes se registran en la DB (vía API o CLI).
 3. **Ejecución:** Se lanza la campaña (dry-run para probar, o real).
-4. **Seguimiento:** Cada envío queda registrado en la tabla `campaign_runs`.
+4. **Seguimiento:** Cada envío queda registrado en la base de datos histórica.
 
 ---
 
 ## CLI de Administración
 
 La herramienta `npm run cli` permite gestionar el bot sin usar la API directamente. 
-
-> **Nota:** El servidor (`npm run start:dev`) debe estar corriendo en otra terminal.
 
 ### Comandos disponibles:
 
@@ -93,11 +91,7 @@ La herramienta `npm run cli` permite gestionar el bot sin usar la API directamen
 
 ## Estructura de Datos (SQLite)
 
-El sistema utiliza `data/bugmate.sqlite` con las siguientes tablas:
-- `clients`: Datos de contacto y preferencias.
-- `opt_outs`: Números que solicitaron la baja.
-- `campaign_runs`: Log histórico de cada mensaje enviado por campaña.
-- `knowledge_vectors`: (En `knowledge.sqlite`) Vectores para búsqueda semántica.
+El sistema utiliza persistencia en SQLite para asegurar que no se pierdan datos de clientes ni el estado de las campañas.
 
 ---
 

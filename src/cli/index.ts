@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * BugMate CLI — Control tu bot de WhatsApp desde la consola.
+ * BOT-Oscar CLI — Control tu bot de WhatsApp desde la consola.
  *
  * Modo interactivo (sin argumentos):
  *   npm run cli
@@ -39,7 +39,7 @@ import * as cmds from './commands';
 async function ensureServerRunning(client: ApiClient): Promise<void> {
   if (await client.isConnected()) return;
 
-  const stop = spinner('Iniciando servidor BugMate...');
+  const stop = spinner('Iniciando servidor BOT-Oscar...');
 
   const proc: ChildProcess = spawn('npm', ['run', 'start:dev'], {
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -76,7 +76,7 @@ async function ensureServerRunning(client: ApiClient): Promise<void> {
 async function runDirect(client: ApiClient, args: string[]): Promise<void> {
   const connected = await client.isConnected();
   if (!connected) {
-    console.error(fail('No se pudo conectar al servidor BugMate.'));
+    console.error(fail('No se pudo conectar al servidor BOT-Oscar.'));
     console.error(`Asegurate de que el bot esté corriendo con ${c.cyan}npm run start${c.reset}`);
     console.error(`o configurá ${c.cyan}BUGMATE_URL${c.reset} si usa otro puerto.`);
     process.exit(1);
@@ -261,7 +261,7 @@ async function runDirect(client: ApiClient, args: string[]): Promise<void> {
 
 function printDirectHelp(): void {
   console.log(`
-${c.bold}BugMate CLI${c.reset} — Control tu bot de WhatsApp desde la consola
+${c.bold}BOT-Oscar CLI${c.reset} — Control tu bot de WhatsApp desde la consola
 
 ${c.bold}Uso:${c.reset}
   ${c.cyan}npm run cli${c.reset}                        Modo interactivo (REPL)
@@ -304,7 +304,7 @@ ${c.bold}Comandos:${c.reset}
   chat <número>                      Simular conversación (solo en REPL)
 
 ${c.bold}Variables de entorno:${c.reset}
-  ${c.cyan}BUGMATE_URL${c.reset}=http://localhost:3000   URL del servidor BugMate
+  ${c.cyan}BUGMATE_URL${c.reset}=http://localhost:3000   URL del servidor BOT-Oscar
 `);
 }
 
