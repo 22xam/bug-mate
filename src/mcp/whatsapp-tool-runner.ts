@@ -10,6 +10,7 @@ export interface WhatsAppConnectionState {
 export interface WhatsAppClientProvider {
   getClient(): Client;
   getState(): WhatsAppConnectionState;
+  reconnect(): Promise<void>;
 }
 
 type MessageSummary = {
@@ -44,16 +45,42 @@ function cappedLimit(value: unknown, fallback = 20, max = 100): number {
 export class WhatsAppToolRunner {
   constructor(private readonly provider: WhatsAppClientProvider) {}
 
+  private async waitForReady(timeoutMs = 60_000, pollMs = 2_000): Promise<boolean> {
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+      if (this.provider.getState().ready) return true;
+      await new Promise((r) => setTimeout(r, pollMs));
+    }
+    return this.provider.getState().ready;
+  }
+
   async run(name: string, args: Record<string, unknown>): Promise<ToolResult> {
+    try {
+      return await this.runOnce(name, args);
+    } catch (error) {
+      const msg = (error as Error).message ?? '';
+      if (/detached Frame|Session closed|Target closed|Execution context/i.test(msg)) {
+        await this.provider.reconnect();
+        return this.runOnce(name, args);
+      }
+      throw error;
+    }
+  }
+
+  private async runOnce(name: string, args: Record<string, unknown>): Promise<ToolResult> {
     const state = this.provider.getState();
-    if (!state.ready && name !== 'wa_get_status') {
-      return fail('WhatsApp no esta listo aun. Espera el QR o la autenticacion.');
+    const effectivelyReady = state.ready || state.readyAt !== null;
+    if (!effectivelyReady && name !== 'wa_get_status') {
+      const isReady = await this.waitForReady();
+      if (!isReady) {
+        return fail('WhatsApp no esta listo aun. Espera el QR o la autenticacion.');
+      }
     }
 
     switch (name) {
       case 'wa_get_status':
         return ok({
-          ready: state.ready,
+          ready: effectivelyReady,
           readyAt: state.readyAt ? new Date(state.readyAt).toISOString() : null,
           uptime: state.readyAt ? `${Math.round((Date.now() - state.readyAt) / 1000)}s` : null,
         });

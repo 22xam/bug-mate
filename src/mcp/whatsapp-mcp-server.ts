@@ -95,6 +95,7 @@ class WhatsAppMcpServer {
 
   private registerProcessDiagnostics(): void {
     process.on('uncaughtException', (error) => {
+      if ((error as NodeJS.ErrnoException).code === 'EPIPE') return;
       this.logger.log('Uncaught exception', { error: error.message, stack: error.stack });
     });
     process.on('unhandledRejection', (reason) => {
@@ -109,7 +110,7 @@ class WhatsAppMcpServer {
     process.stdin.on('end', () => this.logger.log('stdin ended by MCP client'));
     process.stdin.on('close', () => this.logger.log('stdin closed by MCP client'));
     process.stdin.on('error', (error) => this.logger.log('stdin error', { error: error.message }));
-    process.stdout.on('error', (error) => this.logger.log('stdout error', { error: error.message }));
+    process.stdout.on('error', () => { /* EPIPE: MCP client closed stdout — exit cleanly */ process.exit(0); });
   }
 }
 

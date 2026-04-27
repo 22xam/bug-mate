@@ -18,6 +18,7 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
   private client: Client;
   private readyAt: number | null = null;
   private readonly enabled = process.env['WHATSAPP_ENABLED'] !== 'false';
+  private readonly initTimeoutMs = Number.parseInt(process.env['WHATSAPP_INIT_TIMEOUT_MS'] ?? '45000', 10);
 
   /** Recipients the bot is currently sending to — message_create events for these are ignored */
   private readonly botSendingTo = new Set<string>();
@@ -40,14 +41,27 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
     private readonly messageStore: MessageStoreService,
   ) {
     const sessionId = process.env['WHATSAPP_SESSION_ID'];
+    // Use CHROME_PATH env var to override; otherwise let puppeteer use its own
+    // bundled Chromium (avoids incompatibility when system Chrome is too new).
+    const executablePath = process.env['CHROME_PATH'] || undefined;
+    const webVersion = process.env['WHATSAPP_WEB_VERSION'] || undefined;
     this.client = new Client({
       authStrategy: new LocalAuth({
         dataPath: './.wwebjs_auth',
         clientId: sessionId,
       }),
+      ...(webVersion
+        ? {
+            webVersion,
+            webVersionCache: {
+              type: 'remote' as const,
+              remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html',
+            },
+          }
+        : {}),
       puppeteer: {
         headless: true,
-        executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
+        executablePath,
         args: ['--no-sandbox', '--disable-setuid-sandbox'],
       },
     });
@@ -76,11 +90,20 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
     this.client.on('ready', async () => {
       this.readyAt = Date.now();
       this.logger.log('WhatsApp client is ready!');
-      await this.logAvailableGroups();
+      this.printPanelReady();
+      void this.logAvailableGroups();
     });
 
     this.client.on('authenticated', () => {
       this.logger.log('WhatsApp authentication successful');
+    });
+
+    this.client.on('loading_screen', (percent, message) => {
+      this.logger.log(`WhatsApp loading: ${percent}% ${message ?? ''}`.trim());
+    });
+
+    this.client.on('change_state', (state) => {
+      this.logger.log(`WhatsApp state changed: ${state}`);
     });
 
     this.client.on('auth_failure', (msg) => {
@@ -88,7 +111,9 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
     });
 
     this.client.on('disconnected', (reason) => {
-      this.logger.warn(`Disconnected: ${reason}`);
+      this.logger.error(
+        `Sesion de WhatsApp cerrada desde el celular o navegador. Motivo: ${reason}. Reinicia el bot y escanea el QR nuevamente.`,
+      );
     });
 
     // Incoming messages from clients
@@ -108,7 +133,18 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
       await this.handleOutgoingMessage(message);
     });
 
-    await this.client.initialize();
+    setImmediate(() => {
+      void this.startClientInitialization();
+    });
+  }
+
+  private async startClientInitialization(): Promise<void> {
+    const initPromise = this.client.initialize();
+    initPromise.catch((error) => {
+      this.logger.error(`WhatsApp initialization failed: ${(error as Error).message}`);
+    });
+
+    await this.waitForInitializeOrTimeout(initPromise);
   }
 
   async sendMessage(message: OutgoingMessage): Promise<void> {
@@ -546,7 +582,7 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
 
   private async logAvailableGroups(): Promise<void> {
     try {
-      const chats = await this.client.getChats();
+      const chats = await this.withTimeout(this.client.getChats(), 15000, 'Timed out loading WhatsApp groups');
       const groups = chats.filter((c) => c.isGroup);
       if (groups.length === 0) {
         this.logger.log('No groups found. Create a group and add the bot to use the control group feature.');
@@ -560,6 +596,39 @@ export class WhatsAppAdapter implements MessageAdapter, OnApplicationBootstrap {
       this.logger.log('Set CONTROL_GROUP_ID=<id> in .env to enable control commands.');
     } catch {
       // Non-critical — ignore
+    }
+  }
+
+  private printPanelReady(): void {
+    const port = process.env['PORT'] ?? 3000;
+    process.stdout.write(
+      `\nWhatsApp conectado. Ya podes abrir el panel: http://127.0.0.1:${port}/panel\n\n`,
+    );
+  }
+
+  private async waitForInitializeOrTimeout(initPromise: Promise<void>): Promise<void> {
+    try {
+      await this.withTimeout(
+        initPromise,
+        Number.isFinite(this.initTimeoutMs) ? this.initTimeoutMs : 45000,
+        'WhatsApp initialization is still running in the background',
+      );
+    } catch (error) {
+      this.logger.warn((error as Error).message);
+    }
+  }
+
+  private async withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+    let timer: NodeJS.Timeout | undefined;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise<T>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 

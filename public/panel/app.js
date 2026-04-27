@@ -38,9 +38,11 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   $('#saveToken').addEventListener('click', saveToken);
   $('#refresh').addEventListener('click', refreshCurrent);
+  $('#systemAlertClose')?.addEventListener('click', hideSystemAlert);
   document.body.addEventListener('click', handleAction);
   $('#runStatus').addEventListener('change', loadCampaignRuns);
   void loadDashboard();
+  void loadSystemAlerts();
 });
 
 async function api(path, options = {}) {
@@ -343,6 +345,52 @@ function toast(message) {
   el.textContent = message;
   el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 2600);
+}
+
+async function loadSystemAlerts() {
+  try {
+    const entries = await api('/api/logs?limit=80');
+    const alertEntry = [...entries].reverse().find(isWhatsAppClosedLog);
+    if (alertEntry) showWhatsAppClosedAlert(alertEntry.message);
+  } catch {
+    // Best effort: the console view still shows raw logs.
+  }
+  startGlobalLogSse();
+}
+
+function startGlobalLogSse() {
+  const url = state.token
+    ? `/api/logs/stream?token=${encodeURIComponent(state.token)}`
+    : '/api/logs/stream';
+  const sse = new EventSource(url);
+
+  sse.onmessage = (event) => {
+    try {
+      const entry = JSON.parse(event.data);
+      if (isWhatsAppClosedLog(entry)) showWhatsAppClosedAlert(entry.message);
+    } catch {
+      // ignore parse errors
+    }
+  };
+}
+
+function isWhatsAppClosedLog(entry) {
+  const message = String(entry?.message || '').toLowerCase();
+  return entry?.level === 'ERROR' && message.includes('sesion de whatsapp cerrada');
+}
+
+function showWhatsAppClosedAlert(message) {
+  const alert = $('#systemAlert');
+  if (!alert) return;
+  $('#systemAlertTitle').textContent = 'Sesion de WhatsApp cerrada';
+  $('#systemAlertText').textContent =
+    message || 'El bot quedo sin conexion. Reinicia el bot y escanea el QR nuevamente.';
+  alert.hidden = false;
+}
+
+function hideSystemAlert() {
+  const alert = $('#systemAlert');
+  if (alert) alert.hidden = true;
 }
 
 // ── WhatsApp message view ────────────────────────────────────

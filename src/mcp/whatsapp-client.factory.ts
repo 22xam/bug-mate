@@ -33,16 +33,19 @@ export class LocalAuthWhatsAppClientFactory implements WhatsAppClientFactory {
 
   create(): Client {
     const { sessionId, dataPath } = this.getSessionConfig();
-    const chromePath =
-      'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+    // Use CHROME_PATH env var to override; otherwise let puppeteer use its own
+    // bundled Chromium (avoids incompatibility when system Chrome is too new).
+    const chromePath = process.env['CHROME_PATH'] || undefined;
+    const webVersion = process.env['WHATSAPP_WEB_VERSION'] || undefined;
 
     this.logger.log('Creating WhatsApp client', {
       cwd: process.cwd(),
       sessionId,
       dataPath,
       dataPathExists: fs.existsSync(dataPath),
-      chromePath,
-      chromeExists: fs.existsSync(chromePath),
+      chromePath: chromePath ?? '(puppeteer bundled)',
+      chromeExists: chromePath ? fs.existsSync(chromePath) : true,
+      webVersion: webVersion ?? '(live)',
     });
 
     return new Client({
@@ -50,6 +53,15 @@ export class LocalAuthWhatsAppClientFactory implements WhatsAppClientFactory {
         dataPath,
         clientId: sessionId,
       }),
+      ...(webVersion
+        ? {
+            webVersion,
+            webVersionCache: {
+              type: 'remote' as const,
+              remotePath: 'https://raw.githubusercontent.com/wppconnect-team/wa-version/main/html/{version}.html',
+            },
+          }
+        : {}),
       puppeteer: {
         headless: true,
         executablePath: chromePath,
@@ -76,15 +88,33 @@ export class LocalAuthWhatsAppClientFactory implements WhatsAppClientFactory {
       sessionPath,
     });
 
+    let killedCount = 0;
     if (process.platform === 'win32') {
-      return this.cleanupWindowsBrowserProcesses(sessionPath);
+      killedCount = await this.cleanupWindowsBrowserProcesses(sessionPath);
+    } else {
+      this.logger.log('Browser process cleanup is only implemented on Windows', {
+        platform: process.platform,
+        sessionPath,
+      });
     }
 
-    this.logger.log('Browser process cleanup is only implemented on Windows', {
-      platform: process.platform,
-      sessionPath,
-    });
-    return 0;
+    this.removeSingletonLock(sessionPath);
+    return killedCount;
+  }
+
+  private removeSingletonLock(sessionPath: string): void {
+    const lockFile = path.join(sessionPath, 'SingletonLock');
+    try {
+      if (fs.existsSync(lockFile)) {
+        fs.unlinkSync(lockFile);
+        this.logger.log('Removed SingletonLock', { lockFile });
+      }
+    } catch (error) {
+      this.logger.log('Failed to remove SingletonLock', {
+        lockFile,
+        error: (error as Error).message,
+      });
+    }
   }
 
   private getSessionConfig(): { sessionId: string; dataPath: string } {

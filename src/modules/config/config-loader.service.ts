@@ -43,8 +43,8 @@ export class ConfigLoaderService implements OnModuleInit {
   reloadAll(): void {
     this.logger.log('Loading JSON configuration files...');
     this._botConfig = this.loadJson<BotConfig>('bot.config.json');
-    this._clients = this.loadJson<ClientConfig[]>('clients.json');
-    this._knowledge = this.loadJson<KnowledgeEntry[]>('knowledge.json');
+    this._clients = this.loadOptionalJson<ClientConfig[]>('clients.json', []);
+    this._knowledge = this.loadOptionalJson<KnowledgeEntry[]>('knowledge.json', []);
     this._campaigns = this.loadOptionalJson<CampaignConfig[]>('campaigns.json', []);
     this._antispam = this.loadOptionalJson<AntispamConfig>('antispam.json', ConfigLoaderService.ANTISPAM_DEFAULTS);
     this._knowledgeDocs = this.loadKnowledgeDocs();

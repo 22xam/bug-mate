@@ -40,6 +40,14 @@
         <button id="refresh" class="primary">Actualizar</button>
       </header>
 
+      <div id="systemAlert" class="system-alert" hidden>
+        <div>
+          <strong id="systemAlertTitle">Sesion de WhatsApp cerrada</strong>
+          <p id="systemAlertText">El bot quedo sin conexion. Reinicia el bot y escanea el QR nuevamente.</p>
+        </div>
+        <button id="systemAlertClose" type="button" aria-label="Cerrar aviso">Cerrar</button>
+      </div>
+
       <section id="dashboard" class="view active">
         <div class="metrics" id="metrics"></div>
         <div class="grid two">

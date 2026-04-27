@@ -27,7 +27,10 @@ export class LogBufferService implements LoggerService {
   }
 
   log(message: unknown, context?: string)   { this.push('LOG',   message, context); }
-  error(message: unknown, context?: string) { this.push('ERROR', message, context); }
+  error(message: unknown, traceOrContext?: string, context?: string) {
+    const ctx = context ?? traceOrContext;
+    this.push('ERROR', message, ctx);
+  }
   warn(message: unknown, context?: string)  { this.push('WARN',  message, context); }
   debug(message: unknown, context?: string) { this.push('DEBUG', message, context); }
   verbose(message: unknown, context?: string) { this.push('VERBOSE', message, context); }

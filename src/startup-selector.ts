@@ -803,6 +803,80 @@ async function configureAntispam(rl: readline.Interface): Promise<void> {
   }
 }
 
+// ─── Session cleaner ─────────────────────────────────────────────────────────
+
+function findSessionDirs(): string[] {
+  // Busca en bug-mate/.wwebjs_auth y en el directorio padre (raíz del repo)
+  const candidates = [
+    path.join(process.cwd(), '.wwebjs_auth'),
+    path.join(process.cwd(), '..', '.wwebjs_auth'),
+  ];
+  const found: string[] = [];
+  for (const base of candidates) {
+    if (!fs.existsSync(base)) continue;
+    for (const entry of fs.readdirSync(base)) {
+      const full = path.join(base, entry);
+      if (fs.statSync(full).isDirectory() && entry.startsWith('session')) {
+        found.push(full);
+      }
+    }
+  }
+  return found;
+}
+
+function rmrf(dirPath: string): void {
+  if (!fs.existsSync(dirPath)) return;
+  fs.rmSync(dirPath, { recursive: true, force: true });
+}
+
+async function clearSessions(rl: readline.Interface): Promise<void> {
+  header('🗑️  Limpiar sesiones de WhatsApp guardadas');
+
+  const dirs = findSessionDirs();
+
+  if (dirs.length === 0) {
+    ok('No se encontraron carpetas de sesión.');
+    return;
+  }
+
+  info('Se van a borrar las siguientes carpetas:');
+  print('');
+  for (const d of dirs) {
+    info(`  ${RED}${d}${RESET}`);
+  }
+  print('');
+  warn('Esto cierra la sesión activa — el bot pedirá un QR nuevo al iniciar.');
+  warn('La sesión del MCP también será borrada si está en la lista.');
+  print('');
+
+  const confirm = await ask(rl, `  ${CYAN}¿Confirmar borrado? (s/N): ${RESET}`);
+  if (confirm.toLowerCase() !== 's') {
+    dim('Operación cancelada.');
+    return;
+  }
+
+  let deleted = 0;
+  let failed = 0;
+  for (const d of dirs) {
+    try {
+      rmrf(d);
+      ok(`Borrado: ${path.basename(path.dirname(d))}/${path.basename(d)}`);
+      deleted++;
+    } catch (e) {
+      err(`No se pudo borrar ${d}: ${(e as Error).message}`);
+      err('  → Asegurate de que el bot y el MCP no estén corriendo.');
+      failed++;
+    }
+  }
+
+  print('');
+  if (failed === 0) {
+    ok(`${deleted} carpeta(s) borradas. El próximo inicio pedirá un QR nuevo.`);
+  } else {
+    warn(`${deleted} borradas, ${failed} fallaron. Cerrá todos los procesos node y reintentá.`);
+  }
+}
+
 // ─── Main selector ────────────────────────────────────────────────────────────
 
 export type StartupMode = 'bot' | 'mcp';
@@ -866,6 +940,7 @@ export async function runStartupSelector(): Promise<StartupMode> {
         'Configurar Anti-Spam',
         `WhatsApp          → ${waLabel}`,
         `Iniciar como ${mcpLabel}`,
+        `${RED}Limpiar sesiones guardadas${RESET}  ${DIM}(borrar .wwebjs_auth — pedirá QR nuevo)${RESET}`,
         'Iniciar bot',
       ];
       options.forEach((p, i) => info(`  ${BOLD}${i + 1}.${RESET} ${p}`));
@@ -932,6 +1007,8 @@ export async function runStartupSelector(): Promise<StartupMode> {
         await startMcpServer();
         // startMcpServer no retorna — mantiene el proceso vivo
         return 'mcp';
+      } else if (choice === 6) {
+        await clearSessions(rl);
       } else {
         ok(`Iniciando con ${currentProvider} / ${currentModel}`);
         break;

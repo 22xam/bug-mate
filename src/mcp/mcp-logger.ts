@@ -17,17 +17,31 @@ export class FileMcpLogger implements McpLogger {
     }\n`;
 
     try {
-      process.stderr.write(line);
-    } catch (err) {
-      // Ignore EPIPE or other write errors to prevent server crash
-    }
-
-    try {
       fs.mkdirSync(path.dirname(this.logPath), { recursive: true });
       fs.appendFileSync(this.logPath, line, 'utf-8');
     } catch {
-      // If file logging fails, stderr still gives diagnostics without breaking MCP.
+      // If file logging fails, continue silently — never write to stderr from logger
+      // to avoid EPIPE feedback loops when the MCP client closes the pipe.
     }
+  }
+}
+
+export const MCP_QR_PATH = path.join(PROJECT_ROOT, 'logs', 'whatsapp-mcp-qr.txt');
+
+export function saveQrToFile(qrText: string): void {
+  try {
+    fs.mkdirSync(path.dirname(MCP_QR_PATH), { recursive: true });
+    fs.writeFileSync(MCP_QR_PATH, qrText, 'utf-8');
+  } catch {
+    // silent
+  }
+}
+
+export function clearQrFile(): void {
+  try {
+    fs.writeFileSync(MCP_QR_PATH, '', 'utf-8');
+  } catch {
+    // silent
   }
 }
 
