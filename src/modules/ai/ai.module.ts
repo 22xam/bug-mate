@@ -3,6 +3,7 @@ import { HttpModule } from '@nestjs/axios';
 import { GeminiProvider } from './providers/gemini.provider';
 import { OllamaProvider } from './providers/ollama.provider';
 import { OpenRouterProvider } from './providers/openrouter.provider';
+import { ClaudeProvider } from './providers/claude.provider';
 import { AiConversationService } from './ai-conversation.service';
 import { RagContextService } from './rag-context.service';
 import { AI_PROVIDER, EMBEDDING_PROVIDER } from '../core/tokens/injection-tokens';
@@ -16,19 +17,22 @@ import { SessionModule } from '../session/session.module';
     GeminiProvider,
     OllamaProvider,
     OpenRouterProvider,
+    ClaudeProvider,
     RagContextService,
     AiConversationService,
     {
       provide: AI_PROVIDER,
-      inject: [BotConfigService, GeminiProvider, OllamaProvider, OpenRouterProvider],
+      inject: [BotConfigService, GeminiProvider, OllamaProvider, OpenRouterProvider, ClaudeProvider],
       useFactory: (
         config: BotConfigService,
         gemini: GeminiProvider,
         ollama: OllamaProvider,
         openRouter: OpenRouterProvider,
+        claude: ClaudeProvider,
       ) => {
         if (config.aiProvider === 'ollama') return ollama;
         if (config.aiProvider === 'openrouter') return openRouter;
+        if (config.aiProvider === 'claude') return claude;
         return gemini;
       },
     },
@@ -42,8 +46,7 @@ import { SessionModule } from '../session/session.module';
         openRouter: OpenRouterProvider,
       ) => {
         if (config.aiProvider === 'ollama') return ollama;
-        // OpenRouter chat models don't support embeddings — fall back to Gemini for vectors
-        if (config.aiProvider === 'openrouter') return gemini;
+        // OpenRouter y Claude no tienen endpoint de embeddings — usar Gemini para vectores
         return gemini;
       },
     },
@@ -54,6 +57,7 @@ import { SessionModule } from '../session/session.module';
     GeminiProvider,
     OllamaProvider,
     OpenRouterProvider,
+    ClaudeProvider,
     RagContextService,
     AiConversationService,
   ],

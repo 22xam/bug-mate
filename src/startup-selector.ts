@@ -192,6 +192,12 @@ const GEMINI_MODELS = [
   'gemini-1.5-pro',
 ];
 
+const CLAUDE_MODELS = [
+  'claude-sonnet-4-6',
+  'claude-opus-4-7',
+  'claude-haiku-4-5-20251001',
+];
+
 // ─── Provider flows ───────────────────────────────────────────────────────────
 
 async function configureGemini(
@@ -273,6 +279,45 @@ async function configureOllama(
   patchBotConfigModel(model, model);
 
   ok(`Ollama configurado → modelo: ${BOLD}${model}${RESET}`);
+}
+
+async function configureClaude(
+  rl: readline.Interface,
+  env: Record<string, string>,
+): Promise<void> {
+  header('📦 Proveedor: Claude (Anthropic)');
+
+  let apiKey = env['ANTHROPIC_API_KEY'] ?? '';
+  if (apiKey) {
+    ok(`API Key detectada: ${apiKey.slice(0, 12)}...`);
+    const change = await ask(rl, `  ¿Cambiarla? (s/N): `);
+    if (change.toLowerCase() === 's') apiKey = '';
+  }
+
+  if (!apiKey) {
+    apiKey = await ask(rl, `  ${CYAN}Pegá tu Anthropic API Key (sk-ant-...): ${RESET}`);
+  }
+
+  header('🤖 Modelos disponibles');
+  CLAUDE_MODELS.forEach((m, i) => info(`  ${BOLD}${i + 1}.${RESET} ${m}`));
+  const choice = await askNumber(
+    rl,
+    `\n  ${CYAN}Elegí un modelo (1-${CLAUDE_MODELS.length}): ${RESET}`,
+    CLAUDE_MODELS.length,
+  );
+  const model = CLAUDE_MODELS[choice - 1];
+
+  writeEnv({
+    AI_PROVIDER: 'claude',
+    ANTHROPIC_API_KEY: apiKey,
+    ANTHROPIC_MODEL: model,
+  });
+
+  // Claude no tiene embeddings propios — Gemini sigue siendo embedding provider
+  patchBotConfigModel(model, 'text-embedding-004');
+
+  ok(`Claude configurado → modelo: ${BOLD}${model}${RESET}`);
+  dim('  Nota: embeddings siguen usando Gemini (Claude no provee vectores propios)');
 }
 
 async function configureOpenRouter(
@@ -958,25 +1003,28 @@ export async function runStartupSelector(): Promise<StartupMode> {
           'Gemini (Google)',
           'Ollama (local)',
           'OpenRouter',
+          'Claude (Anthropic)',
           'Volver',
         ];
         providers.forEach((p, i) => {
           const isCurrent =
             (i === 0 && currentProvider === 'gemini') ||
             (i === 1 && currentProvider === 'ollama') ||
-            (i === 2 && currentProvider === 'openrouter');
+            (i === 2 && currentProvider === 'openrouter') ||
+            (i === 3 && currentProvider === 'claude');
           info(
             `  ${BOLD}${i + 1}.${RESET} ${p}${isCurrent ? ` ${GREEN}← actual${RESET}` : ''}`,
           );
         });
         const pChoice = await askNumber(
           rl,
-          `\n  ${CYAN}Proveedor (1-4): ${RESET}`,
-          4,
+          `\n  ${CYAN}Proveedor (1-5): ${RESET}`,
+          5,
         );
         if (pChoice === 1) await configureGemini(rl, env);
         else if (pChoice === 2) await configureOllama(rl, env);
         else if (pChoice === 3) await configureOpenRouter(rl, env);
+        else if (pChoice === 4) await configureClaude(rl, env);
       } else if (choice === 2) {
         await configureCampaigns(rl);
       } else if (choice === 3) {

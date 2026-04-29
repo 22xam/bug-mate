@@ -78,8 +78,24 @@ export class BotConfigService {
     return value === true || value === 'true';
   }
 
-  get aiProvider(): 'gemini' | 'ollama' | 'openrouter' {
-    return this.config.get<'gemini' | 'ollama' | 'openrouter'>('AI_PROVIDER', 'gemini');
+  get aiProvider(): 'gemini' | 'ollama' | 'openrouter' | 'claude' {
+    return this.config.get<'gemini' | 'ollama' | 'openrouter' | 'claude'>('AI_PROVIDER', 'gemini');
+  }
+
+  get anthropicApiKey(): string | undefined {
+    return this.config.get<string>('ANTHROPIC_API_KEY');
+  }
+
+  get anthropicModel(): string {
+    return this.config.get<string>('ANTHROPIC_MODEL', 'claude-sonnet-4-6');
+  }
+
+  get anthropicMaxTokens(): number {
+    return Number(this.config.get('ANTHROPIC_MAX_TOKENS', 1024));
+  }
+
+  get anthropicTimeoutMs(): number {
+    return Number(this.config.get('ANTHROPIC_TIMEOUT_MS', 60000));
   }
 
   get trelloEnabled(): boolean {
