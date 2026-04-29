@@ -159,6 +159,18 @@ export class CampaignService {
       }
 
       const finalStatus = message ? status : 'failed';
+
+      // First contacts wait an extra delayFirstContact_ms before being available
+      const isFirstContact =
+        !dryRun &&
+        !optedOut &&
+        !this.database.connection
+          .prepare("SELECT id FROM campaign_jobs WHERE phone = ? AND status = 'sent' LIMIT 1")
+          .get(client.phone);
+      const as = this.configLoader.antispam;
+      const firstContactExtra = isFirstContact ? (as.delayFirstContact_ms ?? 0) : 0;
+      const availableAt = firstContactExtra > 0 ? new Date(Date.now() + firstContactExtra).toISOString() : now;
+
       insertJob.run(
         randomUUID(),
         runId,
@@ -169,7 +181,7 @@ export class CampaignService {
         campaign.retry?.maxAttempts ?? 3,
         message,
         optedOut ? 'opt-out' : message ? null : 'render_failed',
-        now,
+        availableAt,
         now,
         now,
       );

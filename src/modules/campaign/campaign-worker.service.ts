@@ -1,3 +1,5 @@
+import * as fs from 'fs';
+import * as path from 'path';
 import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
 import { CampaignService } from './campaign.service';
 import { ConfigLoaderService } from '../config/config-loader.service';
@@ -11,6 +13,13 @@ export class CampaignWorkerService implements OnApplicationBootstrap, OnModuleDe
   private readonly lastProcessedAt = new Map<string, number>();
   private timer: NodeJS.Timeout | null = null;
   private running = false;
+
+  // Persistent state for consecutive-days and warm-up tracking
+  private antispamState: { sendDays: string[]; warmupStartDate: string | null } = {
+    sendDays: [],
+    warmupStartDate: null,
+  };
+  private readonly stateFile = path.join(process.cwd(), 'config', 'antispam-state.json');
 
   // Anti-spam counters — reset diariamente / por hora
   private sentToday = 0;
@@ -37,6 +46,7 @@ export class CampaignWorkerService implements OnApplicationBootstrap, OnModuleDe
       return;
     }
 
+    this.loadAntispamState();
     const safeInterval = Math.max(this.intervalMs, 1000);
     this.timer = setInterval(() => {
       void this.tick();
@@ -83,6 +93,12 @@ export class CampaignWorkerService implements OnApplicationBootstrap, OnModuleDe
       this.resetCountersIfNeeded();
       const as = this.configLoader.antispam;
 
+      // Días consecutivos — forzar descanso si se superó el límite
+      if (this.isConsecutiveDaysExceeded(as.maxConsecutiveDays)) {
+        this.logger.warn(`Campaign worker: consecutive days limit (${as.maxConsecutiveDays}) exceeded — resting today`);
+        return { processed: 0, activeRuns: 0, blocked: 'consecutive_days' };
+      }
+
       // Ventana horaria
       const windowBlock = this.outsideSendWindow(as.sendWindowStart, as.sendWindowEnd);
       if (windowBlock) {
@@ -90,9 +106,10 @@ export class CampaignWorkerService implements OnApplicationBootstrap, OnModuleDe
         return { processed: 0, activeRuns: 0, blocked: 'send_window' };
       }
 
-      // Límite diario
-      if (this.sentToday >= as.maxPerDay) {
-        this.logger.warn(`Campaign worker: daily limit reached (${this.sentToday}/${as.maxPerDay})`);
+      // Límite diario (respeta warmupMode si está activo)
+      const effectiveMaxPerDay = this.getEffectiveMaxPerDay();
+      if (this.sentToday >= effectiveMaxPerDay) {
+        this.logger.warn(`Campaign worker: daily limit reached (${this.sentToday}/${effectiveMaxPerDay}${as.warmupMode ? ' warmup' : ''})`);
         return { processed: 0, activeRuns: 0, blocked: 'daily_limit' };
       }
 
@@ -117,7 +134,7 @@ export class CampaignWorkerService implements OnApplicationBootstrap, OnModuleDe
 
       for (const runId of runIds) {
         // Re-check limits inside loop (may have hit them mid-tick)
-        if (this.sentToday >= as.maxPerDay || this.sentThisHour >= as.maxPerHour) break;
+        if (this.sentToday >= effectiveMaxPerDay || this.sentThisHour >= as.maxPerHour) break;
 
         const campaignId = this.campaignService.getRunCampaignId(runId);
         if (!campaignId) {
@@ -160,6 +177,7 @@ export class CampaignWorkerService implements OnApplicationBootstrap, OnModuleDe
         this.sentThisHour++;
         this.sentInBatch++;
         processed++;
+        this.recordSendDay();
 
         // Pausa larga post-batch
         if (this.sentInBatch >= as.batchSize) {
@@ -247,6 +265,77 @@ export class CampaignWorkerService implements OnApplicationBootstrap, OnModuleDe
       msg.includes('protocol error') ||
       msg.includes('navigation')
     );
+  }
+
+  // ─── Antispam state persistence (consecutive days + warmup) ──────
+
+  private loadAntispamState(): void {
+    try {
+      const raw = fs.readFileSync(this.stateFile, 'utf8');
+      this.antispamState = JSON.parse(raw) as typeof this.antispamState;
+    } catch {
+      // first run — no state file yet
+    }
+  }
+
+  private saveAntispamState(): void {
+    try {
+      fs.writeFileSync(this.stateFile, JSON.stringify(this.antispamState, null, 2));
+    } catch (err) {
+      this.logger.warn(`Could not persist antispam state: ${(err as Error).message}`);
+    }
+  }
+
+  /** Registers today as a send day; persists to disk if new. */
+  private recordSendDay(): void {
+    const today = new Date().toDateString();
+    if (!this.antispamState.sendDays.includes(today)) {
+      this.antispamState.sendDays.push(today);
+      if (this.antispamState.sendDays.length > 30) {
+        this.antispamState.sendDays = this.antispamState.sendDays.slice(-30);
+      }
+      this.saveAntispamState();
+    }
+  }
+
+  /** Returns true if sends happened on each of the last `max` calendar days before today.
+   *  That means today should be a forced rest day. */
+  private isConsecutiveDaysExceeded(max: number): boolean {
+    if (max <= 0) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let streak = 0;
+    for (let i = 1; i <= max; i++) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      if (this.antispamState.sendDays.includes(d.toDateString())) {
+        streak++;
+      } else {
+        break;
+      }
+    }
+    return streak >= max;
+  }
+
+  /** Returns the effective daily send limit, applying warmupSchedule when warmupMode is on. */
+  private getEffectiveMaxPerDay(): number {
+    const as = this.configLoader.antispam;
+    if (!as.warmupMode || !as.warmupSchedule?.length) return as.maxPerDay;
+
+    if (!this.antispamState.warmupStartDate) {
+      this.antispamState.warmupStartDate = new Date().toDateString();
+      this.saveAntispamState();
+    }
+
+    const start = new Date(this.antispamState.warmupStartDate);
+    const today = new Date();
+    start.setHours(0, 0, 0, 0);
+    today.setHours(0, 0, 0, 0);
+    const dayIndex = Math.floor((today.getTime() - start.getTime()) / 86400000);
+    const clampedIndex = Math.min(Math.max(dayIndex, 0), as.warmupSchedule.length - 1);
+    const limit = as.warmupSchedule[clampedIndex];
+    this.logger.debug(`Warmup mode: day ${dayIndex + 1}, effectiveLimit=${limit}`);
+    return limit;
   }
 
   private async pauseAllRunsAndAlert(reason: string, error: Error | null): Promise<void> {
